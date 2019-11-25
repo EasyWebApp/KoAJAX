@@ -1,0 +1,55 @@
+{
+    "name": "koajax",
+    "version": "0.1.0",
+    "license": "LGPL-3.0",
+    "author": "shiy2008@gmail.com",
+    "description": "HTTP Client based on Koa-like middlewares",
+    "keywords": [
+        "http",
+        "request",
+        "client",
+        "ajax",
+        "koa",
+        "middleware"
+    ],
+    "homepage": "https://github.com/EasyWebApp/KoAJAX#readme",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/EasyWebApp/KoAJAX.git"
+    },
+    "bugs": {
+        "url": "https://github.com/EasyWebApp/KoAJAX/issues"
+    },
+    "source": "source/index.ts",
+    "devDependencies": {
+        "@types/jest": "^24.0.23",
+        "husky": "^3.1.0",
+        "jest": "^24.9.0",
+        "lint-staged": "^9.4.3",
+        "prettier": "^1.19.1",
+        "ts-jest": "^24.2.0",
+        "typescript": "^3.7.2"
+    },
+    "prettier": {
+        "singleQuote": true,
+        "tabWidth": 4
+    },
+    "lint-staged": {
+        "*.{md,ts,json,yml}": [
+            "prettier --write",
+            "git add"
+        ]
+    },
+    "jest": {
+        "preset": "ts-jest",
+        "testEnvironment": "node"
+    },
+    "scripts": {
+        "test": "lint-staged && jest"
+    },
+    "husky": {
+        "hooks": {
+            "pre-commit": "npm test"
+        }
+    }
+}
