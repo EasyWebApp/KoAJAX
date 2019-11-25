@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -21,6 +21,9 @@
         "url": "https://github.com/EasyWebApp/KoAJAX/issues"
     },
     "source": "source/index.ts",
+    "dependencies": {
+        "iterable-observer": "^1.0.0-beta.0"
+    },
     "devDependencies": {
         "@types/jest": "^24.0.23",
         "husky": "^3.1.0",
@@ -28,6 +31,7 @@
         "lint-staged": "^9.4.3",
         "prettier": "^1.19.1",
         "ts-jest": "^24.2.0",
+        "ts-polyfill": "^3.5.3",
         "typescript": "^3.7.2"
     },
     "prettier": {
@@ -41,8 +45,7 @@
         ]
     },
     "jest": {
-        "preset": "ts-jest",
-        "testEnvironment": "node"
+        "preset": "ts-jest"
     },
     "scripts": {
         "test": "lint-staged && jest"
