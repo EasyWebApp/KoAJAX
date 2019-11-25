@@ -6,19 +6,24 @@ export enum NonIdempotentMethods {
     PATCH = 'PATCH'
 }
 
-export interface Request {
+export interface RequestOptions {
+    withCredentials?: boolean;
+    timeout?: number;
+    responseType?: XMLHttpRequestResponseType;
+}
+
+export interface Request extends RequestOptions {
     method?: 'HEAD' | 'GET' | 'DELETE' | keyof typeof NonIdempotentMethods;
     path: string;
     headers?: { [key: string]: string };
     body?: BodyInit | HTMLFormElement | any;
-    responseType?: XMLHttpRequestResponseType;
 }
 
-export interface Response {
+export interface Response<B = Request['body']> {
     status: number;
     statusText: string;
-    headers: Request['headers'];
-    body: Request['body'];
+    headers?: Request['headers'];
+    body?: B;
 }
 
 export function request({
@@ -45,7 +50,7 @@ export function request({
                     ),
                     body: request.response
                 });
-            request.onerror = reject;
+            request.onerror = request.ontimeout = reject;
 
             request.open(method, path);
 

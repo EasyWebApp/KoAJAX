@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -48,7 +48,8 @@
         "preset": "ts-jest"
     },
     "scripts": {
-        "test": "lint-staged && jest"
+        "test": "lint-staged && jest",
+        "debug": "node --inspect node_modules/jest/bin/jest --runInBand"
     },
     "husky": {
         "hooks": {
