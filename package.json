@@ -12,7 +12,7 @@
         "koa",
         "middleware"
     ],
-    "homepage": "https://github.com/EasyWebApp/KoAJAX#readme",
+    "homepage": "https://web-cell.dev/KoAJAX/",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/EasyWebApp/KoAJAX.git"
@@ -21,6 +21,8 @@
         "url": "https://github.com/EasyWebApp/KoAJAX/issues"
     },
     "source": "source/index.ts",
+    "types": "dist/index.d.ts",
+    "main": "dist/index.js",
     "dependencies": {
         "iterable-observer": "^1.0.0-beta.0"
     },
@@ -29,9 +31,11 @@
         "husky": "^3.1.0",
         "jest": "^24.9.0",
         "lint-staged": "^9.4.3",
+        "parcel-bundler": "^1.12.4",
         "prettier": "^1.19.1",
         "ts-jest": "^24.2.0",
         "ts-polyfill": "^3.5.3",
+        "typedoc": "^0.15.3",
         "typescript": "^3.7.2"
     },
     "prettier": {
@@ -49,11 +53,17 @@
     },
     "scripts": {
         "test": "lint-staged && jest",
-        "debug": "node --inspect node_modules/jest/bin/jest --runInBand"
+        "debug": "node --inspect node_modules/jest/bin/jest --runInBand",
+        "pack-type": "tsc  &&  rm -f dist/*.{js,map}",
+        "pack-code": "parcel build source/index.ts --global KoAJAX",
+        "pack-docs": "typedoc --name KoAJAX --out docs/ source/",
+        "build": "rm -rf dist/  &&  npm run pack-type  &&  npm run pack-code  &&  npm run pack-docs",
+        "prepublishOnly": "npm test  &&  npm run build"
     },
     "husky": {
         "hooks": {
-            "pre-commit": "npm test"
+            "pre-commit": "npm test",
+            "pre-push": "npm run build"
         }
     }
 }
