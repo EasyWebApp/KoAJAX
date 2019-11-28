@@ -10,6 +10,8 @@
 
 ## Usage
 
+### RESTful API with Token-based Authorization
+
 ```javascript
 import { HTTPClient } from 'koajax';
 
@@ -21,12 +23,38 @@ export const client = new HTTPClient().use(
 
         await next();
 
-        if (method === 'POST' && new URL(path).pathname.startsWith('/session'))
+        if (method === 'POST' && path.startsWith('/session'))
             token = response.headers.Token;
     }
 );
 
-client.get('/path/to/your/API');
+client.get('/path/to/your/API').then(console.log);
+```
+
+### Up/Download files
+
+```javascript
+import { request } from 'koajax';
+
+document.querySelector('input[type="file"]').onchange = async ({
+    target: { files }
+}) => {
+    for (const file of files) {
+        const { upload, download, response } = request({
+            method: 'POST',
+            path: '/files',
+            body: file,
+            responseType: 'json'
+        });
+
+        for await (const { loaded } of upload)
+            console.log(`Upload ${file.name} : ${(loaded / file.size) * 100}%`);
+
+        const { body } = await response;
+
+        console.log(`Upload ${file.name} : ${body.url}`);
+    }
+};
 ```
 
 [1]: https://github.com/koajs/koa#middleware

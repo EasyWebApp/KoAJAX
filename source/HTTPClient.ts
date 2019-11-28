@@ -2,9 +2,10 @@ import { Stack, Middleware } from './Stack';
 import {
     Request,
     Response,
-    NonIdempotentMethods,
+    RequestOptions,
     request,
-    RequestOptions
+    NonIdempotentMethods,
+    serializeNode
 } from './HTTPRequest';
 
 const { splice } = Array.prototype;
@@ -46,19 +47,20 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         const { method = 'GET', headers, body } = request;
 
         if (method in NonIdempotentMethods && body) {
-            if (body instanceof HTMLFormElement)
-                request.body = new FormData(body);
-            else if (typeof body === 'object') {
+            if (body instanceof Node && !(body instanceof Document)) {
+                const { type, data } = serializeNode(body);
+
+                (headers['Content-Type'] = type), (request.body = data);
+            } else if (typeof body === 'object') {
                 if (
-                    headers &&
-                    headers['Content-Type'].startsWith(
+                    headers['Content-Type']?.startsWith(
                         'application/x-www-form-urlencoded'
                     )
                 )
                     request.body = new URLSearchParams(body);
-                else {
-                    request.headers = request.headers || {};
-                    request.headers['Content-Type'] = 'application/json';
+                else if (body.valueOf().constructor === Object) {
+                    headers['Content-Type'] =
+                        headers['Content-Type'] || 'application/json';
 
                     request.body = JSON.stringify(body);
 
@@ -81,7 +83,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
 
     async request<B = any>(data: T['request']): Promise<Response<B>> {
         const context = {
-            request: { headers: {}, ...data },
+            request: { ...data, headers: { ...data.headers } },
             response: {}
         } as T;
 
@@ -90,84 +92,64 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         return context.response;
     }
 
-    async head(
-        path: Request['path'],
-        headers?: Request['headers'],
-        options?: RequestOptions
-    ) {
+    async head(path: Request['path'], headers?: Request['headers']) {
         const { headers: data } = await this.request({
             method: 'HEAD',
             path,
-            headers,
-            ...options
+            headers
         });
 
         return data;
     }
 
-    get<B = any>(
-        path: Request['path'],
-        headers?: Request['headers'],
-        options?: RequestOptions
-    ) {
-        return this.request<B>({ path, headers, ...options });
+    get<B = any>(path: Request['path'], headers?: Request['headers']) {
+        return this.request<B>({ path, headers });
     }
 
     post<B = any>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers'],
-        options?: RequestOptions
+        headers?: Request['headers']
     ) {
         return this.request<B>({
             method: 'POST',
             path,
             headers,
-            body,
-            ...options
+            body
         });
     }
 
     put<B = any>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers'],
-        options?: RequestOptions
+        headers?: Request['headers']
     ) {
         return this.request<B>({
             method: 'PUT',
             path,
             headers,
-            body,
-            ...options
+            body
         });
     }
 
     patch<B = any>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers'],
-        options?: RequestOptions
+        headers?: Request['headers']
     ) {
         return this.request<B>({
             method: 'PATCH',
             path,
             headers,
-            body,
-            ...options
+            body
         });
     }
 
-    async delete(
-        path: Request['path'],
-        headers?: Request['headers'],
-        options?: RequestOptions
-    ) {
+    async delete(path: Request['path'], headers?: Request['headers']) {
         const { headers: data } = await this.request({
             method: 'DELETE',
             path,
-            headers,
-            ...options
+            headers
         });
 
         return data;

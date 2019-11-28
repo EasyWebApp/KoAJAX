@@ -65,3 +65,18 @@ export function request({
         download: Observable.fromEvent<ProgressEvent>(request, 'progress')
     };
 }
+
+export function serializeNode(root: Node) {
+    var data: any, type: string;
+
+    if (root instanceof HTMLFormElement) data = new FormData(root);
+    else if (root instanceof HTMLElement)
+        (data = root.outerHTML), (type = 'text/html');
+    else {
+        data = new XMLSerializer().serializeToString(root);
+
+        type = root instanceof SVGElement ? 'image/svg' : 'application/xml';
+    }
+
+    return { data, type };
+}

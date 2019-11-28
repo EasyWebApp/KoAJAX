@@ -2,3 +2,4 @@ test/
 .cache/
 docs/
 .travis.yml
+.vscode/

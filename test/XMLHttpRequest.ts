@@ -22,30 +22,28 @@ export class XMLHttpRequest extends EventEmitter {
 
     send(body: Request['body']) {
         setTimeout(() => {
-            const status = Number(this.responseURL.split('/').slice(-1)[0]);
+            this.status = Number(this.responseURL.split('/').slice(-1)[0]);
 
-            switch (status) {
+            switch (this.status) {
                 case 200: {
-                    this.status = status;
                     this.statusText = 'OK';
                     this.response = { message: 'Hello, World!' };
                     break;
                 }
                 case 201: {
-                    this.status = status;
                     this.statusText = 'Created';
                     this.response =
-                        this.responseType === 'json' && typeof body === 'string'
-                            ? JSON.parse(body)
-                            : '';
+                        typeof body === 'string' ? JSON.parse(body) : '';
                     break;
                 }
                 case 404: {
-                    this.status = status;
                     this.statusText = 'Not Found';
                     this.response = { message: 'Hello, Error!' };
                 }
             }
+
+            if (this.responseType !== 'json')
+                this.response = JSON.stringify(this.response);
 
             if (this.onload instanceof Function) this.onload();
         });

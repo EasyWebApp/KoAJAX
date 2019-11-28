@@ -8,7 +8,10 @@ global.XMLHttpRequest = XMLHttpRequest;
 
 describe('HTTP Request', () => {
     it('should return a Promise & 2 Observable', async () => {
-        const { upload, download, response } = request({ path: '/200' });
+        const { upload, download, response } = request({
+            path: '/200',
+            responseType: 'json'
+        });
 
         expect(upload).toBeInstanceOf(Observable);
         expect(download).toBeInstanceOf(Observable);
@@ -25,7 +28,7 @@ describe('HTTP Request', () => {
 });
 
 describe('HTTP Client', () => {
-    const client = new HTTPClient();
+    const client = new HTTPClient({ responseType: 'json' });
 
     it('should return Data while Status is less then 300', async () => {
         const { headers, body } = await client.get('/200');
