@@ -1,4 +1,4 @@
-import 'ts-polyfill/lib/es2019-object';
+import 'core-js/es/object/from-entries';
 import { Observable } from 'iterable-observer';
 
 import { request, HTTPClient } from '../source';

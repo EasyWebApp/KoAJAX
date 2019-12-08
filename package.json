@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.3.2",
+    "version": "0.4.0",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -24,7 +24,9 @@
     "types": "dist/index.d.ts",
     "main": "dist/index.js",
     "devDependencies": {
+        "@types/core-js": "^2.5.2",
         "@types/jest": "^24.0.23",
+        "core-js": "^3.4.7",
         "husky": "^3.1.0",
         "iterable-observer": "^1.0.0-beta.2",
         "jest": "^24.9.0",
@@ -32,9 +34,8 @@
         "parcel-bundler": "^1.12.4",
         "prettier": "^1.19.1",
         "ts-jest": "^24.2.0",
-        "ts-polyfill": "^3.5.3",
-        "typedoc": "^0.15.3",
-        "typescript": "^3.7.2"
+        "typedoc": "^0.15.4",
+        "typescript": "^3.7.3"
     },
     "prettier": {
         "singleQuote": true,

@@ -4,9 +4,9 @@ import {
     Response,
     RequestOptions,
     request,
-    NonIdempotentMethods,
-    serializeNode
+    NonIdempotentMethods
 } from './HTTPRequest';
+import { serializeNode } from './utility';
 
 const { splice } = Array.prototype;
 
@@ -145,13 +145,16 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         });
     }
 
-    async delete(path: Request['path'], headers?: Request['headers']) {
-        const { headers: data } = await this.request({
+    delete<B = any>(
+        path: Request['path'],
+        body?: Request['body'],
+        headers?: Request['headers']
+    ) {
+        return this.request<B>({
             method: 'DELETE',
             path,
-            headers
+            headers,
+            body
         });
-
-        return data;
     }
 }
