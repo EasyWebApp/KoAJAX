@@ -1,3 +1,5 @@
+import { Observable } from 'iterable-observer';
+
 export function isXDomain(URI: string) {
     return new URL(URI, document.baseURI).origin !== self.location.origin;
 }
@@ -33,6 +35,74 @@ export function parseURLData(raw = window.location.search) {
     return data;
 }
 
+export interface LinkHeader {
+    [rel: string]: {
+        URI: string;
+        rel: string;
+        title?: string;
+    };
+}
+
+export const headerParser = {
+    Link(value: string) {
+        const link: LinkHeader = {};
+
+        value.replace(
+            /<(\S+?)>; rel="(\w+)"(?:; title="(.*?)")?/g,
+            (_, URI: string, rel: string, title: string) => {
+                link[rel] = { URI, rel };
+
+                if (title != null) link[rel].title = title;
+                return '';
+            }
+        );
+        return link;
+    }
+};
+
+export type HTMLField =
+    | HTMLInputElement
+    | HTMLTextAreaElement
+    | HTMLSelectElement
+    | HTMLFieldSetElement;
+
+export interface FormJSON {
+    [key: string]: string | number | (string | boolean)[];
+}
+
+export function formToJSON({
+    elements
+}: HTMLFormElement | HTMLFieldSetElement): FormJSON {
+    const data = Object.getOwnPropertyNames(elements).map(key => {
+        if (!isNaN(+key)) return;
+
+        const field: HTMLField = elements[key];
+
+        if (field instanceof HTMLFieldSetElement)
+            return [key, formToJSON(field)];
+
+        if (field instanceof RadioNodeList)
+            return [
+                key,
+                Array.from(
+                    field,
+                    ({ checked, defaultValue }: HTMLInputElement) =>
+                        checked ? defaultValue || true : null
+                ).filter(Boolean)
+            ];
+
+        if (field instanceof HTMLSelectElement)
+            return [
+                key,
+                Array.from(field.selectedOptions, ({ value }) => value)
+            ];
+
+        return [key, field.type === 'number' ? +field.value : field.value];
+    });
+
+    return Object.fromEntries(data.filter(Boolean));
+}
+
 export function serializeNode(root: Node) {
     var data: string | FormData, type: string;
 
@@ -63,4 +133,29 @@ export function serializeNode(root: Node) {
     }
 
     return { data, type };
+}
+
+enum FileMethod {
+    text = 'readAsText',
+    dataURL = 'readAsDataURL',
+    binaryString = 'readAsBinaryString',
+    arrayBuffer = 'readAsArrayBuffer'
+}
+
+export function readAs(
+    file: Blob,
+    method: keyof typeof FileMethod,
+    encoding?: string
+) {
+    const reader = new FileReader();
+
+    return {
+        progress: Observable.fromEvent<ProgressEvent>(reader, 'progress'),
+        result: new Promise<string | ArrayBuffer>((resolve, reject) => {
+            reader.onerror = reject;
+            reader.onload = () => resolve(reader.result);
+
+            reader[FileMethod[method]](file, encoding);
+        })
+    };
 }

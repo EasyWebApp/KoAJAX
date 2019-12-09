@@ -15,7 +15,7 @@ export interface RequestOptions {
 export interface Request extends RequestOptions {
     method?: 'HEAD' | 'GET' | 'DELETE' | keyof typeof NonIdempotentMethods;
     path: string;
-    headers?: { [key: string]: string };
+    headers?: HeadersInit;
     body?: BodyInit | HTMLFormElement | any;
 }
 
@@ -29,11 +29,18 @@ export interface Response<B = Request['body']> {
 export function request({
     method = 'GET',
     path,
-    headers,
+    headers = {},
     body,
     ...rest
 }: Request) {
     const request = new XMLHttpRequest();
+
+    headers =
+        headers instanceof Array
+            ? headers
+            : headers?.[Symbol.iterator] instanceof Function
+            ? [...headers]
+            : Object.entries(headers);
 
     return {
         response: new Promise<Response>((resolve, reject) => {
@@ -54,8 +61,8 @@ export function request({
 
             request.open(method, path);
 
-            for (const key in headers)
-                request.setRequestHeader(key, headers[key]);
+            for (const [key, value] of headers)
+                request.setRequestHeader(key, value);
 
             Object.assign(request, rest);
 
