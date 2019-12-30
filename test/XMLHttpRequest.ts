@@ -50,6 +50,6 @@ export class XMLHttpRequest extends EventEmitter {
     }
 
     getAllResponseHeaders() {
-        return 'Content-Type: application/json';
+        return 'content-type: application/json';
     }
 }

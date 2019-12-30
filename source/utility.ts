@@ -11,54 +11,22 @@ export interface URLData {
 }
 
 export function parseURLData(raw = window.location.search) {
-    const data: URLData = {};
+    const data = new URLSearchParams(/(?:\?|#)?(\S+)/.exec(raw)[1]);
 
-    for (let [key, value] of new URLSearchParams(
-        /(?:\?|#)?(\S+)/.exec(raw)[1]
-    )) {
-        try {
-            value = JSON.parse(value);
-        } catch (error) {
-            /**/
-        }
+    return Object.fromEntries(
+        [...data.keys()].map(key => {
+            const list = data.getAll(key).map(value => {
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    return value;
+                }
+            });
 
-        if (!(data[key] != null)) {
-            data[key] = value;
-            continue;
-        }
-
-        if (!(data[key] instanceof Array)) data[key] = [data[key] as JSONValue];
-
-        (data[key] as JSONValue[]).push(value);
-    }
-
-    return data;
+            return [key, list.length < 2 ? list[0] : list];
+        })
+    );
 }
-
-export interface LinkHeader {
-    [rel: string]: {
-        URI: string;
-        rel: string;
-        title?: string;
-    };
-}
-
-export const headerParser = {
-    Link(value: string) {
-        const link: LinkHeader = {};
-
-        value.replace(
-            /<(\S+?)>; rel="(\w+)"(?:; title="(.*?)")?/g,
-            (_, URI: string, rel: string, title: string) => {
-                link[rel] = { URI, rel };
-
-                if (title != null) link[rel].title = title;
-                return '';
-            }
-        );
-        return link;
-    }
-};
 
 export type HTMLField =
     | HTMLInputElement

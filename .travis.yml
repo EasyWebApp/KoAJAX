@@ -13,6 +13,7 @@ install:
     - npm install
 script:
     - npm run ${SCRIPT}
+    - echo '' > docs/.nojekyll
 deploy:
     provider: pages
     on:

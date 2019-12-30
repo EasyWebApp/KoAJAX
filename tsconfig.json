@@ -4,7 +4,7 @@
         "moduleResolution": "node",
         "esModuleInterop": true,
         "downlevelIteration": true,
-        "lib": ["es2019", "dom", "DOM.Iterable"],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "declaration": true,
         "outDir": "dist/"
     },

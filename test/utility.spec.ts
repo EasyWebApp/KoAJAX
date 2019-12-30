@@ -1,4 +1,6 @@
-import { parseURLData, serializeNode, headerParser } from '../source';
+import 'core-js/es/object/from-entries';
+import 'core-js/es/string/match-all';
+import { parseURLData, serializeNode, parseHeaders } from '../source';
 
 describe('HTTP utility', () => {
     describe('Parse URL data', () => {
@@ -25,23 +27,26 @@ describe('HTTP utility', () => {
     describe('Parse Headers', () => {
         it('should parse Link header to Object', () => {
             expect(
-                headerParser.Link(
-                    [
-                        '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2>; rel="next"',
-                        '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34>; rel="last"'
-                    ] + ''
+                parseHeaders(
+                    'link:' +
+                        [
+                            '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2>; rel="next"',
+                            '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34>; rel="last"'
+                        ]
                 )
             ).toEqual(
                 expect.objectContaining({
-                    next: {
-                        rel: 'next',
-                        URI:
-                            'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2'
-                    },
-                    last: {
-                        rel: 'last',
-                        URI:
-                            'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34'
+                    Link: {
+                        next: {
+                            rel: 'next',
+                            URI:
+                                'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2'
+                        },
+                        last: {
+                            rel: 'last',
+                            URI:
+                                'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34'
+                        }
                     }
                 })
             );

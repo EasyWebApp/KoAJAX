@@ -19,7 +19,7 @@ var token = '';
 
 export const client = new HTTPClient().use(
     async ({ request: { method, path, headers }, response }, next) => {
-        if (token) headers.Authorization = 'token ' + token;
+        if (token) headers['Authorization'] = 'token ' + token;
 
         await next();
 
@@ -32,6 +32,8 @@ client.get('/path/to/your/API').then(console.log);
 ```
 
 ### Up/Download files
+
+(based on [Iterable Observer][6])
 
 ```javascript
 import { request } from 'koajax';
@@ -62,3 +64,4 @@ document.querySelector('input[type="file"]').onchange = async ({
 [3]: https://travis-ci.com/EasyWebApp/KoAJAX
 [4]: https://www.jsdelivr.com/package/npm/koajax
 [5]: https://nodei.co/npm/koajax/
+[6]: https://web-cell.dev/iterable-observer/

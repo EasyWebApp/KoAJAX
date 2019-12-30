@@ -22,8 +22,42 @@ export interface Request extends RequestOptions {
 export interface Response<B = Request['body']> {
     status: number;
     statusText: string;
-    headers: Request['headers'];
+    headers: { [key: string]: string | object };
     body?: B;
+}
+
+export interface LinkHeader {
+    [rel: string]: {
+        URI: string;
+        rel: string;
+        title?: string;
+    };
+}
+
+export const headerParser = {
+    Link(value: string): LinkHeader {
+        return Object.fromEntries(
+            Array.from(
+                value.matchAll(/<(\S+?)>; rel="(\w+)"(?:; title="(.*?)")?/g),
+                ([_, URI, rel, title]) => [rel, { rel, URI, title }]
+            )
+        );
+    }
+};
+
+export function parseHeaders(raw: string): Response['headers'] {
+    return Object.fromEntries(
+        Array.from(
+            raw.trim().matchAll(/^([\w-]+):\s*(.*)/gm),
+            ([_, key, value]) => {
+                key = key.replace(/(^[a-z]|-[a-z])/g, char =>
+                    char.toUpperCase()
+                );
+
+                return [key, headerParser[key]?.(value) ?? value];
+            }
+        )
+    );
 }
 
 export function request({
@@ -48,13 +82,7 @@ export function request({
                 resolve({
                     status: request.status,
                     statusText: request.statusText,
-                    headers: Object.fromEntries(
-                        request
-                            .getAllResponseHeaders()
-                            .trim()
-                            .split(/[\r\n]+/)
-                            .map(item => item.split(/:\s*/))
-                    ),
+                    headers: parseHeaders(request.getAllResponseHeaders()),
                     body: request.response
                 });
             request.onerror = request.ontimeout = reject;

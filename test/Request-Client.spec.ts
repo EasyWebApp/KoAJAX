@@ -1,4 +1,5 @@
 import 'core-js/es/object/from-entries';
+import 'core-js/es/string/match-all';
 import { Observable } from 'iterable-observer';
 
 import { request, HTTPClient } from '../source';
