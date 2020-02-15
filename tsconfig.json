@@ -6,6 +6,7 @@
         "downlevelIteration": true,
         "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "declaration": true,
+        "skipLibCheck": true,
         "outDir": "dist/"
     },
     "include": ["source/**/*"]

@@ -59,6 +59,31 @@ document.querySelector('input[type="file"]').onchange = async ({
 };
 ```
 
+### Global Error fallback
+
+```shell
+npm install browser-unhandled-rejection
+```
+
+```javascript
+import { auto } from 'browser-unhandled-rejection';
+import { HTTPError } from 'koajax';
+
+auto();
+
+self.addEventListener('unhandledrejection', event => {
+    if (!(event.reason instanceof URIError)) return;
+
+    const { message } = (event.reason as HTTPError).body;
+
+    if (!message) return;
+
+    event.preventDefault();
+
+    self.alert(message);
+});
+```
+
 [1]: https://github.com/koajs/koa#middleware
 [2]: https://david-dm.org/EasyWebApp/KoAJAX
 [3]: https://travis-ci.com/EasyWebApp/KoAJAX

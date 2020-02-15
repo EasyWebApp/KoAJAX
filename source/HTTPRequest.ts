@@ -14,7 +14,7 @@ export interface RequestOptions {
 
 export interface Request extends RequestOptions {
     method?: 'HEAD' | 'GET' | 'DELETE' | keyof typeof NonIdempotentMethods;
-    path: string;
+    path: string | URL;
     headers?: HeadersInit;
     body?: BodyInit | HTMLFormElement | any;
 }
@@ -24,6 +24,19 @@ export interface Response<B = Request['body']> {
     statusText: string;
     headers: { [key: string]: string | object };
     body?: B;
+}
+
+export class HTTPError<B = Request['body']> extends URIError {
+    status: number;
+    statusText: string;
+    headers: { [key: string]: string | object };
+    body?: B;
+
+    constructor(message: string, response: Response) {
+        super(message);
+
+        Object.assign(this, response);
+    }
 }
 
 export interface LinkHeader {
@@ -60,7 +73,7 @@ export function parseHeaders(raw: string): Response['headers'] {
     );
 }
 
-export function request({
+export function request<B>({
     method = 'GET',
     path,
     headers = {},
@@ -77,7 +90,7 @@ export function request({
             : Object.entries(headers);
 
     return {
-        response: new Promise<Response>((resolve, reject) => {
+        response: new Promise<Response<B>>((resolve, reject) => {
             request.onload = () =>
                 resolve({
                     status: request.status,
@@ -87,7 +100,7 @@ export function request({
                 });
             request.onerror = request.ontimeout = reject;
 
-            request.open(method, path);
+            request.open(method, path + '');
 
             for (const [key, value] of headers)
                 request.setRequestHeader(key, value);

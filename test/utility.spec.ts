@@ -1,6 +1,12 @@
 import 'core-js/es/object/from-entries';
 import 'core-js/es/string/match-all';
-import { parseURLData, serializeNode, parseHeaders } from '../source';
+import {
+    parseURLData,
+    parseHeaders,
+    blobFrom,
+    formToJSON,
+    serializeNode
+} from '../source';
 
 describe('HTTP utility', () => {
     describe('Parse URL data', () => {
@@ -53,7 +59,52 @@ describe('HTTP utility', () => {
         });
     });
 
+    describe('Blob', () => {
+        it('should create a Blob from a Base64 URI', () => {
+            const URI =
+                'data:text/plain;base64,' +
+                Buffer.from('123').toString('base64');
+
+            const { type, size } = blobFrom(URI);
+
+            expect(type).toBe('text/plain');
+            expect(size).toBe(3);
+        });
+    });
+
     describe('Serialize DOM nodes', () => {
+        it('should convert a Form to JSON', () => {
+            document.body.innerHTML = `
+            <form>
+                <input type="checkbox" name="switch" checked>
+
+                <input type="checkbox" name="list" value="1" checked>
+                <input type="checkbox" name="list" value="2">
+                <input type="checkbox" name="list" value="3" checked>
+
+                <select name="array" multiple>
+                    <option>1</option>
+                    <option selected>2</option>
+                    <option selected>3</option>
+                </select>
+
+                <fieldset name="test">
+                    <input type="text" name="example" value="sample" />
+                </fieldset>
+            </form>`;
+
+            const data = formToJSON(document.forms[0]);
+
+            expect(data).toEqual(
+                expect.objectContaining({
+                    switch: true,
+                    list: [1, 3],
+                    array: [2, 3],
+                    test: { example: 'sample' }
+                })
+            );
+        });
+
         it('should serialize Input fields to String', () => {
             document.body.innerHTML = `
             <form>

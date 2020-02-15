@@ -4,7 +4,8 @@ import {
     Response,
     RequestOptions,
     request,
-    NonIdempotentMethods
+    NonIdempotentMethods,
+    HTTPError
 } from './HTTPRequest';
 import { serializeNode } from './utility';
 
@@ -34,7 +35,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         super.use(this.defaultWare);
 
         super.use(async ({ request: data, response }) => {
-            data.path = new URL(data.path, baseURI) + '';
+            data.path = new URL(data.path + '', baseURI) + '';
 
             Object.assign(
                 response,
@@ -72,7 +73,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         await next();
 
         if (response.status > 299)
-            throw Object.assign(new URIError(response.statusText), response);
+            throw new HTTPError(response.statusText, response);
     };
 
     use(...middlewares: Middleware<T>[]) {
@@ -81,7 +82,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         return this;
     }
 
-    async request<B = any>(data: T['request']): Promise<Response<B>> {
+    async request<B>(data: T['request']): Promise<Response<B>> {
         const context = {
             request: { ...data, headers: { ...data.headers } },
             response: {}
@@ -102,11 +103,11 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         return data;
     }
 
-    get<B = any>(path: Request['path'], headers?: Request['headers']) {
+    get<B>(path: Request['path'], headers?: Request['headers']) {
         return this.request<B>({ path, headers });
     }
 
-    post<B = any>(
+    post<B>(
         path: Request['path'],
         body?: Request['body'],
         headers?: Request['headers']
@@ -119,7 +120,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         });
     }
 
-    put<B = any>(
+    put<B>(
         path: Request['path'],
         body?: Request['body'],
         headers?: Request['headers']
@@ -132,7 +133,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         });
     }
 
-    patch<B = any>(
+    patch<B>(
         path: Request['path'],
         body?: Request['body'],
         headers?: Request['headers']
@@ -145,7 +146,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         });
     }
 
-    delete<B = any>(
+    delete<B>(
         path: Request['path'],
         body?: Request['body'],
         headers?: Request['headers']

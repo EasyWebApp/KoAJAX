@@ -1,3 +1,4 @@
+import { request } from './HTTPRequest';
 import { Observable } from 'iterable-observer';
 
 export function isXDomain(URI: string) {
@@ -10,65 +11,102 @@ export interface URLData {
     [key: string]: JSONValue | JSONValue[];
 }
 
+function parse(value: string) {
+    try {
+        return JSON.parse(value);
+    } catch {
+        return value;
+    }
+}
+
 export function parseURLData(raw = window.location.search) {
     const data = new URLSearchParams(/(?:\?|#)?(\S+)/.exec(raw)[1]);
 
     return Object.fromEntries(
         [...data.keys()].map(key => {
-            const list = data.getAll(key).map(value => {
-                try {
-                    return JSON.parse(value);
-                } catch (error) {
-                    return value;
-                }
-            });
+            const list = data.getAll(key).map(parse);
 
             return [key, list.length < 2 ? list[0] : list];
         })
     );
 }
 
-export type HTMLField =
-    | HTMLInputElement
-    | HTMLTextAreaElement
-    | HTMLSelectElement
-    | HTMLFieldSetElement;
+export async function blobOf(URI: string | URL) {
+    const { body } = await request<Blob>({ path: URI, responseType: 'blob' })
+        .response;
+
+    return body;
+}
+
+const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
+
+export function blobFrom(URI: string) {
+    var [_, type, __, base64, data] = DataURI.exec(URI) || [];
+
+    data = base64 ? self.atob(data) : data;
+
+    const aBuffer = new ArrayBuffer(data.length);
+    const uBuffer = new Uint8Array(aBuffer);
+
+    for (let i = 0; data[i]; i++) uBuffer[i] = data.charCodeAt(i);
+
+    return new Blob([aBuffer], { type });
+}
+
+export type HTMLField = HTMLInputElement &
+    HTMLTextAreaElement &
+    HTMLSelectElement &
+    HTMLFieldSetElement;
 
 export interface FormJSON {
     [key: string]: string | number | (string | boolean)[];
 }
 
-export function formToJSON({
-    elements
-}: HTMLFormElement | HTMLFieldSetElement): FormJSON {
-    const data = Object.getOwnPropertyNames(elements).map(key => {
-        if (!isNaN(+key)) return;
+export function formToJSON(
+    form: HTMLFormElement | HTMLFieldSetElement
+): FormJSON {
+    const data = {};
 
-        const field: HTMLField = elements[key];
+    for (const field of form.elements) {
+        let {
+            tagName,
+            type,
+            name,
+            value: v,
+            checked,
+            defaultValue,
+            selectedOptions
+        } = field as HTMLField;
 
-        if (field instanceof HTMLFieldSetElement)
-            return [key, formToJSON(field)];
+        if (!name) continue;
 
-        if (field instanceof RadioNodeList)
-            return [
-                key,
-                Array.from(
-                    field,
-                    ({ checked, defaultValue }: HTMLInputElement) =>
-                        checked ? defaultValue || true : null
-                ).filter(Boolean)
-            ];
+        tagName = tagName.toLowerCase();
 
-        if (field instanceof HTMLSelectElement)
-            return [
-                key,
-                Array.from(field.selectedOptions, ({ value }) => value)
-            ];
+        const box = tagName !== 'fieldset' && field.closest('fieldset');
 
-        return [key, field.type === 'number' ? +field.value : field.value];
-    });
+        if (box && box !== form) continue;
 
-    return Object.fromEntries(data.filter(Boolean));
+        if (['radio', 'checkbox'].includes(type))
+            if (checked) v = defaultValue || 'true';
+            else continue;
+
+        let value: any = parse(v);
+
+        switch (tagName) {
+            case 'select':
+                value = Array.from(selectedOptions, ({ value }) =>
+                    parse(value)
+                );
+                break;
+            case 'fieldset':
+                value = formToJSON(field as HTMLFieldSetElement);
+        }
+
+        if (name in data) data[name] = [].concat(data[name], value);
+        else data[name] = value;
+    }
+
+    return data;
 }
 
 export function serializeNode(root: Node) {
