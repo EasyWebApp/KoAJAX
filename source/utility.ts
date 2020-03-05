@@ -1,34 +1,16 @@
 import { request } from './HTTPRequest';
 import { Observable } from 'iterable-observer';
 
-export function isXDomain(URI: string) {
-    return new URL(URI, document.baseURI).origin !== self.location.origin;
-}
-
-export type JSONValue = number | boolean | string | null;
-
-export interface URLData {
-    [key: string]: JSONValue | JSONValue[];
-}
-
-function parse(value: string) {
+export function parseJSON(raw: string) {
     try {
-        return JSON.parse(value);
+        return JSON.parse(raw, (key, value) =>
+            /^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/.test(value)
+                ? new Date(value)
+                : value
+        );
     } catch {
-        return value;
+        return raw;
     }
-}
-
-export function parseURLData(raw = window.location.search) {
-    const data = new URLSearchParams(/(?:\?|#)?(\S+)/.exec(raw)[1]);
-
-    return Object.fromEntries(
-        [...data.keys()].map(key => {
-            const list = data.getAll(key).map(parse);
-
-            return [key, list.length < 2 ? list[0] : list];
-        })
-    );
 }
 
 export async function blobOf(URI: string | URL) {
@@ -36,21 +18,6 @@ export async function blobOf(URI: string | URL) {
         .response;
 
     return body;
-}
-
-const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
-
-export function blobFrom(URI: string) {
-    var [_, type, __, base64, data] = DataURI.exec(URI) || [];
-
-    data = base64 ? self.atob(data) : data;
-
-    const aBuffer = new ArrayBuffer(data.length);
-    const uBuffer = new Uint8Array(aBuffer);
-
-    for (let i = 0; data[i]; i++) uBuffer[i] = data.charCodeAt(i);
-
-    return new Blob([aBuffer], { type });
 }
 
 export type HTMLField = HTMLInputElement &
@@ -90,12 +57,12 @@ export function formToJSON(
             if (checked) v = defaultValue || 'true';
             else continue;
 
-        let value: any = parse(v);
+        let value: any = parseJSON(v);
 
         switch (tagName) {
             case 'select':
                 value = Array.from(selectedOptions, ({ value }) =>
-                    parse(value)
+                    parseJSON(value)
                 );
                 break;
             case 'fieldset':

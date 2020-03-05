@@ -1,4 +1,5 @@
 import { Observable } from 'iterable-observer';
+import { parseJSON } from './utility';
 
 export enum NonIdempotentMethods {
     POST = 'POST',
@@ -96,7 +97,10 @@ export function request<B>({
                     status: request.status,
                     statusText: request.statusText,
                     headers: parseHeaders(request.getAllResponseHeaders()),
-                    body: request.response
+                    body:
+                        rest.responseType === 'json'
+                            ? parseJSON(request.responseText)
+                            : request.response
                 });
             request.onerror = request.ontimeout = reject;
 

@@ -18,6 +18,7 @@ export class XMLHttpRequest extends EventEmitter {
 
     status: number;
     statusText: string;
+    responseText: string;
     response: any;
 
     send(body: Request['body']) {
@@ -42,8 +43,9 @@ export class XMLHttpRequest extends EventEmitter {
                 }
             }
 
-            if (this.responseType !== 'json')
-                this.response = JSON.stringify(this.response);
+            if (this.responseType === 'json')
+                this.responseText = JSON.stringify(this.response);
+            else this.response = JSON.stringify(this.response);
 
             if (this.onload instanceof Function) this.onload();
         });

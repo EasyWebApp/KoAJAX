@@ -84,6 +84,31 @@ self.addEventListener('unhandledrejection', event => {
 });
 ```
 
+### Read Files
+
+(based on [Iterable Observer][6])
+
+```javascript
+import { readAs } from 'koajax';
+
+document.querySelector('input[type="file"]').onchange = async ({
+    target: { files }
+}) => {
+    for (const file of files) {
+        const { progress, result } = readAs(file, 'dataURL');
+
+        for await (const { loaded } of progress)
+            console.log(
+                `Loading ${file.name} : ${(loaded / file.size) * 100}%`
+            );
+
+        const URI = await result;
+
+        console.log(`Loaded ${file.name} : ${URI}`);
+    }
+};
+```
+
 [1]: https://github.com/koajs/koa#middleware
 [2]: https://david-dm.org/EasyWebApp/KoAJAX
 [3]: https://travis-ci.com/EasyWebApp/KoAJAX

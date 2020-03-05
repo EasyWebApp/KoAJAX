@@ -1,33 +1,20 @@
 import 'core-js/es/object/from-entries';
 import 'core-js/es/string/match-all';
-import {
-    parseURLData,
-    parseHeaders,
-    blobFrom,
-    formToJSON,
-    serializeNode
-} from '../source';
+import { parseJSON, parseHeaders, formToJSON, serializeNode } from '../source';
 
 describe('HTTP utility', () => {
-    describe('Parse URL data', () => {
-        it('should accept ? or # prefix', () => {
-            expect(parseURLData('?')).toBeInstanceOf(Object);
-            expect(parseURLData('#')).toBeInstanceOf(Object);
+    describe('JSON Parser', () => {
+        it('should parse JSON strings within Primitive values', () => {
+            expect(parseJSON('1')).toBe(1);
+            expect(parseJSON('1x')).toBe('1x');
         });
 
-        it('should parse Primitive values', () =>
-            expect(parseURLData('?a=A&b=2&c=false')).toEqual(
-                expect.objectContaining({
-                    a: 'A',
-                    b: 2,
-                    c: false
-                })
-            ));
+        it('should parse JSON strings within ISO Date values', () => {
+            const { time } = parseJSON('{"time": "2020-01-23T00:00:00.000Z"}');
 
-        it('should parse Multiple key to Array', () =>
-            expect(parseURLData('?a=1&b=2&b=3')).toEqual(
-                expect.objectContaining({ a: 1, b: [2, 3] })
-            ));
+            expect(time).toBeInstanceOf(Date);
+            expect((time as Date).toJSON()).toBe('2020-01-23T00:00:00.000Z');
+        });
     });
 
     describe('Parse Headers', () => {
@@ -56,19 +43,6 @@ describe('HTTP utility', () => {
                     }
                 })
             );
-        });
-    });
-
-    describe('Blob', () => {
-        it('should create a Blob from a Base64 URI', () => {
-            const URI =
-                'data:text/plain;base64,' +
-                Buffer.from('123').toString('base64');
-
-            const { type, size } = blobFrom(URI);
-
-            expect(type).toBe('text/plain');
-            expect(size).toBe(3);
         });
     });
 
