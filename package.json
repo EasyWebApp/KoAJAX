@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.6.1",
+    "version": "0.6.4",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -23,30 +23,32 @@
     "source": "source/index.ts",
     "types": "dist/index.d.ts",
     "main": "dist/index.js",
+    "dependencies": {
+        "iterable-observer": "^1.0.0-beta.5"
+    },
     "devDependencies": {
-        "@types/core-js": "^2.5.3",
-        "@types/jest": "^25.1.3",
-        "@types/node": "^13.7.7",
-        "core-js": "^3.6.4",
-        "husky": "^4.2.3",
-        "iterable-observer": "^1.0.0-beta.2",
-        "jest": "^25.1.0",
-        "lint-staged": "^10.0.8",
-        "open-cli": "^5.0.0",
+        "@types/core-js": "^2.5.4",
+        "@types/jest": "^26.0.15",
+        "@types/node": "^14.14.7",
+        "core-js": "^3.7.0",
+        "husky": "^4.3.0",
+        "jest": "^26.6.3",
+        "lint-staged": "^10.5.1",
+        "open-cli": "^6.0.1",
         "parcel-bundler": "^1.12.4",
-        "prettier": "^1.19.1",
-        "ts-jest": "^25.2.1",
-        "typedoc": "^0.16.11",
-        "typescript": "^3.8.3"
+        "prettier": "^2.1.2",
+        "ts-jest": "^26.4.4",
+        "typedoc": "^0.19.2",
+        "typescript": "^4.0.5"
     },
     "prettier": {
         "singleQuote": true,
+        "trailingComma": "none",
+        "arrowParens": "avoid",
         "tabWidth": 4
     },
     "lint-staged": {
-        "*.{md,ts,json,yml}": [
-            "prettier --write"
-        ]
+        "*.{md,ts,json,yml}": "prettier --write"
     },
     "jest": {
         "preset": "ts-jest"

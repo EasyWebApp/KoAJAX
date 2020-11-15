@@ -1,5 +1,6 @@
-import { request } from './HTTPRequest';
 import { Observable } from 'iterable-observer';
+
+import { request } from './HTTPRequest';
 
 export function parseJSON(raw: string) {
     try {

@@ -10,6 +10,21 @@
 
 ## Usage
 
+```Shell
+npm install koajax
+```
+
+`index.html`
+
+```HTML
+<head>
+    <script
+        crossorigin
+        src="https://polyfill.app/api/polyfill?features=es.string.match-all,es.object.from-entries,regenerator-runtime"
+    ></script>
+</head>
+```
+
 ### RESTful API with Token-based Authorization
 
 ```javascript

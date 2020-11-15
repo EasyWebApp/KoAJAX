@@ -35,7 +35,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         super.use(this.defaultWare);
 
         super.use(async ({ request: data, response }) => {
-            data.path = new URL(data.path + '', baseURI) + '';
+            data.path = new URL(data.path + '', this.baseURI) + '';
 
             Object.assign(
                 response,
