@@ -3,7 +3,7 @@
 **HTTP Client** based on [Koa-like middlewares][1]
 
 [![NPM Dependency](https://david-dm.org/EasyWebApp/KoAJAX.svg)][2]
-[![Build Status](https://travis-ci.com/EasyWebApp/KoAJAX.svg?branch=master)][3]
+[![CI & CD](https://github.com/idea2app/KoAJAX/workflows/CI%20&%20CD/badge.svg)][3]
 [![](https://data.jsdelivr.com/v1/package/npm/koajax/badge?style=rounded)][4]
 
 [![NPM](https://nodei.co/npm/koajax.png?downloads=true&downloadRank=true&stars=true)][5]
@@ -126,7 +126,7 @@ document.querySelector('input[type="file"]').onchange = async ({
 
 [1]: https://github.com/koajs/koa#middleware
 [2]: https://david-dm.org/EasyWebApp/KoAJAX
-[3]: https://travis-ci.com/EasyWebApp/KoAJAX
+[3]: https://github.com/idea2app/KoAJAX/actions
 [4]: https://www.jsdelivr.com/package/npm/koajax
 [5]: https://nodei.co/npm/koajax/
 [6]: https://web-cell.dev/iterable-observer/

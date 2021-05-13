@@ -9,5 +9,12 @@
         "skipLibCheck": true,
         "outDir": "dist/"
     },
-    "include": ["source/**/*"]
+    "include": ["source/**/*"],
+    "typedocOptions": {
+        "name": "KoAJAX",
+        "excludeExternals": true,
+        "excludePrivate": true,
+        "readme": "./ReadMe.md",
+        "out": "docs/"
+    }
 }

@@ -4,7 +4,7 @@ import {
     Response,
     RequestOptions,
     request,
-    NonIdempotentMethods,
+    BodyRequestMethods,
     HTTPError
 } from './HTTPRequest';
 import { serializeNode } from './utility';
@@ -47,7 +47,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     defaultWare: Middleware<T> = async ({ request, response }, next) => {
         const { method = 'GET', headers, body } = request;
 
-        if (method in NonIdempotentMethods && body) {
+        if (method in BodyRequestMethods && body) {
             if (body instanceof Node && !(body instanceof Document)) {
                 const { type, data } = serializeNode(body);
 

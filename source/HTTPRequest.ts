@@ -1,9 +1,10 @@
 import { Observable } from 'iterable-observer';
 
-export enum NonIdempotentMethods {
+export enum BodyRequestMethods {
     POST = 'POST',
     PUT = 'PUT',
-    PATCH = 'PATCH'
+    PATCH = 'PATCH',
+    DELETE = 'DELETE'
 }
 
 export interface RequestOptions {
@@ -13,7 +14,7 @@ export interface RequestOptions {
 }
 
 export interface Request extends RequestOptions {
-    method?: 'HEAD' | 'GET' | 'DELETE' | keyof typeof NonIdempotentMethods;
+    method?: 'HEAD' | 'GET' | keyof typeof BodyRequestMethods;
     path: string | URL;
     headers?: HeadersInit;
     body?: BodyInit | HTMLFormElement | any;
@@ -80,14 +81,13 @@ export function request<B>({
     body,
     ...rest
 }: Request) {
-    const request = new XMLHttpRequest();
-
-    headers =
-        headers instanceof Array
-            ? headers
-            : headers?.[Symbol.iterator] instanceof Function
-            ? [...headers]
-            : Object.entries(headers);
+    const request = new XMLHttpRequest(),
+        header_list =
+            headers instanceof Array
+                ? headers
+                : headers?.[Symbol.iterator] instanceof Function
+                ? [...(headers as Iterable<string[]>)]
+                : Object.entries(headers);
 
     return {
         response: new Promise<Response<B>>((resolve, reject) => {
@@ -102,7 +102,7 @@ export function request<B>({
 
             request.open(method, path + '');
 
-            for (const [key, value] of headers)
+            for (const [key, value] of header_list)
                 request.setRequestHeader(key, value);
 
             Object.assign(request, rest);

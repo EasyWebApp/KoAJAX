@@ -1,5 +1,6 @@
 test/
 .cache/
 docs/
-.travis.yml
+.husky/
+.github/
 .vscode/

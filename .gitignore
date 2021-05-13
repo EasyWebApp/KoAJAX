@@ -3,4 +3,5 @@ package-lock.json
 dist/
 .cache/
 docs/
+.husky/_/
 .vscode/
