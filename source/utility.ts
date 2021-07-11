@@ -2,79 +2,11 @@ import { Observable } from 'iterable-observer';
 
 import { request } from './HTTPRequest';
 
-export function parseJSON(raw: string) {
-    try {
-        return JSON.parse(raw, (key, value) =>
-            /^\d{4}(-\d{2}){2}T\d{2}(:\d{2}){2}\.\d{3}Z$/.test(value)
-                ? new Date(value)
-                : value
-        );
-    } catch {
-        return raw;
-    }
-}
-
 export async function blobOf(URI: string | URL) {
     const { body } = await request<Blob>({ path: URI, responseType: 'blob' })
         .response;
 
     return body;
-}
-
-export type HTMLField = HTMLInputElement &
-    HTMLTextAreaElement &
-    HTMLSelectElement &
-    HTMLFieldSetElement;
-
-export interface FormJSON {
-    [key: string]: string | number | (string | boolean)[];
-}
-
-export function formToJSON(
-    form: HTMLFormElement | HTMLFieldSetElement
-): FormJSON {
-    const data = {};
-
-    for (const field of form.elements) {
-        let {
-            tagName,
-            type,
-            name,
-            value: v,
-            checked,
-            defaultValue,
-            selectedOptions
-        } = field as HTMLField;
-
-        if (!name) continue;
-
-        tagName = tagName.toLowerCase();
-
-        const box = tagName !== 'fieldset' && field.closest('fieldset');
-
-        if (box && box !== form) continue;
-
-        if (['radio', 'checkbox'].includes(type))
-            if (checked) v = defaultValue || 'true';
-            else continue;
-
-        let value: any = parseJSON(v);
-
-        switch (tagName) {
-            case 'select':
-                value = Array.from(selectedOptions, ({ value }) =>
-                    parseJSON(value)
-                );
-                break;
-            case 'fieldset':
-                value = formToJSON(field as HTMLFieldSetElement);
-        }
-
-        if (name in data) data[name] = [].concat(data[name], value);
-        else data[name] = value;
-    }
-
-    return data;
 }
 
 export function serializeNode(root: Node) {
