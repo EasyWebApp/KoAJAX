@@ -1,0 +1,232 @@
+<!doctype html>
+<html class="default no-js">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>KoAJAX</title>
+	<meta name="description" content="Documentation for KoAJAX">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="assets/css/main.css">
+	<script async src="assets/js/search.js" id="search-script"></script>
+</head>
+<body>
+<header>
+	<div class="tsd-page-toolbar">
+		<div class="container">
+			<div class="table-wrap">
+				<div class="table-cell" id="tsd-search" data-index="assets/js/search.json" data-base=".">
+					<div class="field">
+						<label for="tsd-search-field" class="tsd-widget search no-caption">Search</label>
+						<input id="tsd-search-field" type="text" />
+					</div>
+					<ul class="results">
+						<li class="state loading">Preparing search index...</li>
+						<li class="state failure">The search index is not available</li>
+					</ul>
+					<a href="index.html" class="title">KoAJAX</a>
+				</div>
+				<div class="table-cell" id="tsd-widgets">
+					<div id="tsd-filter">
+						<a href="#" class="tsd-widget options no-caption" data-toggle="options">Options</a>
+						<div class="tsd-filter-group">
+							<div class="tsd-select" id="tsd-filter-visibility">
+								<span class="tsd-select-label">All</span>
+								<ul class="tsd-select-list">
+									<li data-value="public">Public</li>
+									<li data-value="protected">Public/Protected</li>
+									<li data-value="private" class="selected">All</li>
+								</ul>
+							</div>
+							<input type="checkbox" id="tsd-filter-inherited" checked />
+							<label class="tsd-widget" for="tsd-filter-inherited">Inherited</label>
+						</div>
+					</div>
+					<a href="#" class="tsd-widget menu no-caption" data-toggle="menu">Menu</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tsd-page-title">
+		<div class="container">
+			<h1>KoAJAX</h1>
+		</div>
+	</div>
+</header>
+<div class="container container-main">
+	<div class="row">
+		<div class="col-8 col-content">
+			<div class="tsd-panel tsd-typography">
+				<a href="#koajax" id="koajax" style="color: inherit; text-decoration: none;">
+					<h1>KoAJAX</h1>
+				</a>
+				<p><strong>HTTP Client</strong> based on <a href="https://github.com/koajs/koa#middleware">Koa-like middlewares</a></p>
+				<p><a href="https://david-dm.org/EasyWebApp/KoAJAX"><img src="https://david-dm.org/EasyWebApp/KoAJAX.svg" alt="NPM Dependency"></a>
+					<a href="https://github.com/idea2app/KoAJAX/actions"><img src="https://github.com/idea2app/KoAJAX/workflows/CI%20&%20CD/badge.svg" alt="CI &amp; CD"></a>
+				<a href="https://www.jsdelivr.com/package/npm/koajax"><img src="https://data.jsdelivr.com/v1/package/npm/koajax/badge?style=rounded" alt=""></a></p>
+				<p><a href="https://nodei.co/npm/koajax/"><img src="https://nodei.co/npm/koajax.png?downloads=true&downloadRank=true&stars=true" alt="NPM"></a></p>
+				<a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
+					<h2>Usage</h2>
+				</a>
+				<pre><code class="language-Shell"><span style="color: #000000">npm install koajax</span>
+</code></pre>
+				<p><code>index.html</code></p>
+				<pre><code class="language-HTML"><span style="color: #800000">&lt;head&gt;</span>
+<span style="color: #000000">    </span><span style="color: #800000">&lt;script</span>
+<span style="color: #000000FF">        </span><span style="color: #FF0000">crossorigin</span>
+<span style="color: #000000FF">        </span><span style="color: #FF0000">src</span><span style="color: #000000FF">=</span><span style="color: #0000FF">&quot;https://polyfill.app/api/polyfill?features=es.string.match-all,es.object.from-entries,regenerator-runtime&quot;</span>
+<span style="color: #000000FF">    </span><span style="color: #800000">&gt;&lt;/script&gt;</span>
+<span style="color: #800000">&lt;/head&gt;</span>
+</code></pre>
+				<a href="#restful-api-with-token-based-authorization" id="restful-api-with-token-based-authorization" style="color: inherit; text-decoration: none;">
+					<h3>RESTful API with Token-based Authorization</h3>
+				</a>
+				<pre><code class="language-javascript"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">HTTPClient</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;koajax&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #0000FF">var</span><span style="color: #000000"> </span><span style="color: #001080">token</span><span style="color: #000000"> = </span><span style="color: #A31515">&#039;&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #AF00DB">export</span><span style="color: #000000"> </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">client</span><span style="color: #000000"> = </span><span style="color: #0000FF">new</span><span style="color: #000000"> </span><span style="color: #795E26">HTTPClient</span><span style="color: #000000">().</span><span style="color: #795E26">use</span><span style="color: #000000">(</span>
+<span style="color: #000000">    </span><span style="color: #0000FF">async</span><span style="color: #000000"> ({ </span><span style="color: #001080">request</span><span style="color: #000000">: { </span><span style="color: #001080">method</span><span style="color: #000000">, </span><span style="color: #001080">path</span><span style="color: #000000">, </span><span style="color: #001080">headers</span><span style="color: #000000"> }, </span><span style="color: #001080">response</span><span style="color: #000000"> }, </span><span style="color: #001080">next</span><span style="color: #000000">) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">        </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">token</span><span style="color: #000000">) </span><span style="color: #001080">headers</span><span style="color: #000000">[</span><span style="color: #A31515">&#039;Authorization&#039;</span><span style="color: #000000">] = </span><span style="color: #A31515">&#039;token &#039;</span><span style="color: #000000"> + </span><span style="color: #001080">token</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">        </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">next</span><span style="color: #000000">();</span>
+
+<span style="color: #000000">        </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (</span><span style="color: #001080">method</span><span style="color: #000000"> === </span><span style="color: #A31515">&#039;POST&#039;</span><span style="color: #000000"> &amp;&amp; </span><span style="color: #001080">path</span><span style="color: #000000">.</span><span style="color: #795E26">startsWith</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;/session&#039;</span><span style="color: #000000">))</span>
+<span style="color: #000000">            </span><span style="color: #001080">token</span><span style="color: #000000"> = </span><span style="color: #001080">response</span><span style="color: #000000">.</span><span style="color: #001080">headers</span><span style="color: #000000">.</span><span style="color: #001080">Token</span><span style="color: #000000">;</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">);</span>
+
+<span style="color: #001080">client</span><span style="color: #000000">.</span><span style="color: #795E26">get</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;/path/to/your/API&#039;</span><span style="color: #000000">).</span><span style="color: #795E26">then</span><span style="color: #000000">(</span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #001080">log</span><span style="color: #000000">);</span>
+</code></pre>
+				<a href="#updownload-files" id="updownload-files" style="color: inherit; text-decoration: none;">
+					<h3>Up/Download files</h3>
+				</a>
+				<p>(based on <a href="https://web-cell.dev/iterable-observer/">Iterable Observer</a>)</p>
+				<pre><code class="language-javascript"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">request</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;koajax&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #001080">document</span><span style="color: #000000">.</span><span style="color: #795E26">querySelector</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;input[type=&quot;file&quot;]&#039;</span><span style="color: #000000">).</span><span style="color: #795E26">onchange</span><span style="color: #000000"> = </span><span style="color: #0000FF">async</span><span style="color: #000000"> ({</span>
+<span style="color: #000000">    </span><span style="color: #001080">target:</span><span style="color: #000000"> { </span><span style="color: #001080">files</span><span style="color: #000000"> }</span>
+<span style="color: #000000">}) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">for</span><span style="color: #000000"> (</span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">file</span><span style="color: #000000"> </span><span style="color: #0000FF">of</span><span style="color: #000000"> </span><span style="color: #001080">files</span><span style="color: #000000">) {</span>
+<span style="color: #000000">        </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">upload</span><span style="color: #000000">, </span><span style="color: #0070C1">download</span><span style="color: #000000">, </span><span style="color: #0070C1">response</span><span style="color: #000000"> } = </span><span style="color: #795E26">request</span><span style="color: #000000">({</span>
+<span style="color: #000000">            </span><span style="color: #001080">method:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;POST&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">            </span><span style="color: #001080">path:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;/files&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">            </span><span style="color: #001080">body:</span><span style="color: #000000"> </span><span style="color: #001080">file</span><span style="color: #000000">,</span>
+<span style="color: #000000">            </span><span style="color: #001080">responseType:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;json&#039;</span>
+<span style="color: #000000">        });</span>
+
+<span style="color: #000000">        </span><span style="color: #AF00DB">for</span><span style="color: #000000"> </span><span style="color: #AF00DB">await</span><span style="color: #000000"> (</span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">loaded</span><span style="color: #000000"> } </span><span style="color: #0000FF">of</span><span style="color: #000000"> </span><span style="color: #001080">upload</span><span style="color: #000000">)</span>
+<span style="color: #000000">            </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">log</span><span style="color: #000000">(</span><span style="color: #A31515">`Upload </span><span style="color: #0000FF">${</span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #A31515"> : </span><span style="color: #0000FF">${</span><span style="color: #000000FF">(</span><span style="color: #001080">loaded</span><span style="color: #000000FF"> </span><span style="color: #000000">/</span><span style="color: #000000FF"> </span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">size</span><span style="color: #000000FF">) </span><span style="color: #000000">*</span><span style="color: #000000FF"> </span><span style="color: #098658">100</span><span style="color: #0000FF">}</span><span style="color: #A31515">%`</span><span style="color: #000000">);</span>
+
+<span style="color: #000000">        </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">body</span><span style="color: #000000"> } = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">response</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">        </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">log</span><span style="color: #000000">(</span><span style="color: #A31515">`Upload </span><span style="color: #0000FF">${</span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #A31515"> : </span><span style="color: #0000FF">${</span><span style="color: #001080">body</span><span style="color: #000000FF">.</span><span style="color: #001080">url</span><span style="color: #0000FF">}</span><span style="color: #A31515">`</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">};</span>
+</code></pre>
+				<a href="#global-error-fallback" id="global-error-fallback" style="color: inherit; text-decoration: none;">
+					<h3>Global Error fallback</h3>
+				</a>
+				<pre><code class="language-shell"><span style="color: #000000">npm install browser-unhandled-rejection</span>
+</code></pre>
+				<pre><code class="language-javascript"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">auto</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;browser-unhandled-rejection&#039;</span><span style="color: #000000">;</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">HTTPError</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;koajax&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #795E26">auto</span><span style="color: #000000">();</span>
+
+<span style="color: #001080">self</span><span style="color: #000000">.</span><span style="color: #795E26">addEventListener</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;unhandledrejection&#039;</span><span style="color: #000000">, </span><span style="color: #001080">event</span><span style="color: #000000"> </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!(</span><span style="color: #001080">event</span><span style="color: #000000">.</span><span style="color: #001080">reason</span><span style="color: #000000"> </span><span style="color: #0000FF">instanceof</span><span style="color: #000000"> </span><span style="color: #267F99">URIError</span><span style="color: #000000">)) </span><span style="color: #AF00DB">return</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">    </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">message</span><span style="color: #000000"> } = (</span><span style="color: #001080">event</span><span style="color: #000000">.</span><span style="color: #001080">reason</span><span style="color: #000000"> </span><span style="color: #AF00DB">as</span><span style="color: #000000"> </span><span style="color: #267F99">HTTPError</span><span style="color: #000000">).</span><span style="color: #001080">body</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">    </span><span style="color: #AF00DB">if</span><span style="color: #000000"> (!</span><span style="color: #001080">message</span><span style="color: #000000">) </span><span style="color: #AF00DB">return</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">    </span><span style="color: #001080">event</span><span style="color: #000000">.</span><span style="color: #795E26">preventDefault</span><span style="color: #000000">();</span>
+
+<span style="color: #000000">    </span><span style="color: #001080">self</span><span style="color: #000000">.</span><span style="color: #795E26">alert</span><span style="color: #000000">(</span><span style="color: #001080">message</span><span style="color: #000000">);</span>
+<span style="color: #000000">});</span>
+</code></pre>
+				<a href="#read-files" id="read-files" style="color: inherit; text-decoration: none;">
+					<h3>Read Files</h3>
+				</a>
+				<p>(based on <a href="https://web-cell.dev/iterable-observer/">Iterable Observer</a>)</p>
+				<pre><code class="language-javascript"><span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">readAs</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;koajax&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #001080">document</span><span style="color: #000000">.</span><span style="color: #795E26">querySelector</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;input[type=&quot;file&quot;]&#039;</span><span style="color: #000000">).</span><span style="color: #795E26">onchange</span><span style="color: #000000"> = </span><span style="color: #0000FF">async</span><span style="color: #000000"> ({</span>
+<span style="color: #000000">    </span><span style="color: #001080">target:</span><span style="color: #000000"> { </span><span style="color: #001080">files</span><span style="color: #000000"> }</span>
+<span style="color: #000000">}) </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> {</span>
+<span style="color: #000000">    </span><span style="color: #AF00DB">for</span><span style="color: #000000"> (</span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">file</span><span style="color: #000000"> </span><span style="color: #0000FF">of</span><span style="color: #000000"> </span><span style="color: #001080">files</span><span style="color: #000000">) {</span>
+<span style="color: #000000">        </span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">progress</span><span style="color: #000000">, </span><span style="color: #0070C1">result</span><span style="color: #000000"> } = </span><span style="color: #795E26">readAs</span><span style="color: #000000">(</span><span style="color: #001080">file</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;dataURL&#039;</span><span style="color: #000000">);</span>
+
+<span style="color: #000000">        </span><span style="color: #AF00DB">for</span><span style="color: #000000"> </span><span style="color: #AF00DB">await</span><span style="color: #000000"> (</span><span style="color: #0000FF">const</span><span style="color: #000000"> { </span><span style="color: #0070C1">loaded</span><span style="color: #000000"> } </span><span style="color: #0000FF">of</span><span style="color: #000000"> </span><span style="color: #001080">progress</span><span style="color: #000000">)</span>
+<span style="color: #000000">            </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">log</span><span style="color: #000000">(</span>
+<span style="color: #000000">                </span><span style="color: #A31515">`Loading </span><span style="color: #0000FF">${</span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #A31515"> : </span><span style="color: #0000FF">${</span><span style="color: #000000FF">(</span><span style="color: #001080">loaded</span><span style="color: #000000FF"> </span><span style="color: #000000">/</span><span style="color: #000000FF"> </span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">size</span><span style="color: #000000FF">) </span><span style="color: #000000">*</span><span style="color: #000000FF"> </span><span style="color: #098658">100</span><span style="color: #0000FF">}</span><span style="color: #A31515">%`</span>
+<span style="color: #000000">            );</span>
+
+<span style="color: #000000">        </span><span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">URI</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">result</span><span style="color: #000000">;</span>
+
+<span style="color: #000000">        </span><span style="color: #001080">console</span><span style="color: #000000">.</span><span style="color: #795E26">log</span><span style="color: #000000">(</span><span style="color: #A31515">`Loaded </span><span style="color: #0000FF">${</span><span style="color: #001080">file</span><span style="color: #000000FF">.</span><span style="color: #001080">name</span><span style="color: #0000FF">}</span><span style="color: #A31515"> : </span><span style="color: #0000FF">${</span><span style="color: #0070C1">URI</span><span style="color: #0000FF">}</span><span style="color: #A31515">`</span><span style="color: #000000">);</span>
+<span style="color: #000000">    }</span>
+<span style="color: #000000">};</span>
+</code></pre>
+			</div>
+		</div>
+		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+			<nav class="tsd-navigation primary">
+				<ul>
+					<li class=" ">
+						<a href="modules.html">Modules</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/HTTPClient.html">HTTPClient</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/HTTPRequest.html">HTTPRequest</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/Stack.html">Stack</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/index.html">index</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/utility.html">utility</a>
+					</li>
+				</ul>
+			</nav>
+			<nav class="tsd-navigation secondary menu-sticky">
+				<ul class="before-current">
+				</ul>
+			</nav>
+		</div>
+	</div>
+</div>
+<footer class="with-border-bottom">
+	<div class="container">
+		<h2>Legend</h2>
+		<div class="tsd-legend-group">
+			<ul class="tsd-legend">
+				<li class="tsd-kind-variable"><span class="tsd-kind-icon">Variable</span></li>
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
+				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
+				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-class tsd-has-type-parameter"><span class="tsd-kind-icon">Class with type parameter</span></li>
+			</ul>
+		</div>
+	</div>
+</footer>
+<div class="container tsd-generator">
+	<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p>
+</div>
+<div class="overlay"></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
