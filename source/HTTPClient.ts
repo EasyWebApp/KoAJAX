@@ -16,7 +16,7 @@ export interface Context {
     response: Response;
 }
 
-interface ClientOptions extends RequestOptions {
+export interface ClientOptions extends RequestOptions {
     baseURI?: string;
 }
 
