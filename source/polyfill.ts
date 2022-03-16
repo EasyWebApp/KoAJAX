@@ -1,17 +1,21 @@
-import { JSDOM } from 'jsdom';
+export async function polyfill(origin: string) {
+    if (globalThis.XMLHttpRequest) return;
 
-const { window } = new JSDOM();
+    const { JSDOM } = await import('jsdom');
 
-for (const key of [
-    'Node',
-    'Document',
-    'document',
-    'HTMLElement',
-    'HTMLFormElement',
-    'SVGElement',
-    'XMLSerializer',
-    'FormData',
-    'XMLHttpRequest',
-    'FileReader'
-])
-    global[key] = window[key];
+    const { window } = await JSDOM.fromURL(origin);
+
+    for (const key of [
+        'Node',
+        'Document',
+        'document',
+        'HTMLElement',
+        'HTMLFormElement',
+        'SVGElement',
+        'XMLSerializer',
+        'FormData',
+        'XMLHttpRequest',
+        'FileReader'
+    ])
+        globalThis[key] = window[key];
+}

@@ -10,6 +10,8 @@
 
 ## Usage
 
+### Browser
+
 ```Shell
 npm install koajax
 ```
@@ -24,6 +26,32 @@ npm install koajax
     ></script>
 </head>
 ```
+
+### Node.js
+
+```shell
+npm install koajax jsdom
+```
+
+`index.js`
+
+```javascript
+import { polyfill, HTTPClient } from 'koajax';
+
+const origin = 'https://your-target-origin.com';
+
+polyfill(origin).then(() => {
+    const client = new HTTPClient({
+        baseURI: `${origin}/api`,
+        responseType: 'json'
+    });
+    const { body } = await client.get('test/interface');
+
+    console.log(body);
+});
+```
+
+## Example
 
 ### RESTful API with Token-based Authorization
 

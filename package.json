@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.7.2",
+    "version": "0.8.0-rc.0",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -26,6 +26,9 @@
     "module": "dist/index.js",
     "dependencies": {
         "iterable-observer": "1.0.0-rc.0"
+    },
+    "peerDependencies": {
+        "jsdom": "^19.0.0"
     },
     "devDependencies": {
         "@babel/core": "^7.17.7",
@@ -65,9 +68,8 @@
         "prepare": "husky install",
         "test": "lint-staged && jest",
         "pack-code": "cross-env NODE_ENV=build  microbundle --name KoAJAX --external iterable-observer --globals iterable-observer=IterableObserver",
-        "pack-patch": "tsc source/polyfill.ts --outDir dist/",
         "pack-docs": "rm -rf docs/  &&  typedoc source/",
-        "build": "rm -rf dist/  &&  npm run pack-code  &&  npm run pack-patch  &&  npm run pack-docs",
+        "build": "rm -rf dist/  &&  npm run pack-code  &&  npm run pack-docs",
         "help": "npm run pack-docs  &&  open-cli docs/index.html",
         "prepublishOnly": "npm test  &&  npm run build"
     }
