@@ -1,4 +1,5 @@
 import { Observable } from 'iterable-observer';
+import { stringifyDOM } from 'web-utility';
 
 import { request } from './HTTPRequest';
 
@@ -33,7 +34,7 @@ export function serializeNode(root: Node) {
     } else if (root instanceof HTMLElement)
         (data = root.outerHTML), (type = 'text/html');
     else {
-        data = new XMLSerializer().serializeToString(root);
+        data = stringifyDOM(root);
 
         type = root instanceof SVGElement ? 'image/svg' : 'application/xml';
     }

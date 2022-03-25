@@ -59,17 +59,17 @@ export class HTTPClient<T extends Context> extends Stack<T> {
                     )
                 )
                     request.body = new URLSearchParams(body);
-                else if (body.valueOf().constructor === Object) {
-                    headers['Content-Type'] =
-                        headers['Content-Type'] || 'application/json';
+                else
+                    try {
+                        headers['Content-Type'] =
+                            headers['Content-Type'] || 'application/json';
 
-                    request.body = JSON.stringify(body);
+                        request.body = JSON.stringify(body);
 
-                    request.responseType = request.responseType || 'json';
-                }
+                        request.responseType = request.responseType || 'json';
+                    } catch {}
             }
         }
-
         await next();
 
         if (response.status > 299)
@@ -99,7 +99,6 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             path,
             headers
         });
-
         return data;
     }
 

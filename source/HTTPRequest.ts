@@ -1,4 +1,5 @@
 import { Observable } from 'iterable-observer';
+import { sleep, parseDOM } from 'web-utility';
 
 export enum BodyRequestMethods {
     POST = 'POST',
@@ -23,14 +24,14 @@ export interface Request extends RequestOptions {
 export interface Response<B = Request['body']> {
     status: number;
     statusText: string;
-    headers: { [key: string]: string | object };
+    headers: Record<string, string | object>;
     body?: B;
 }
 
 export class HTTPError<B = Request['body']> extends URIError {
     status: number;
     statusText: string;
-    headers: { [key: string]: string | object };
+    headers: Response<B>['headers'];
     body?: B;
 
     constructor(message: string, response: Response) {
@@ -40,13 +41,14 @@ export class HTTPError<B = Request['body']> extends URIError {
     }
 }
 
-export interface LinkHeader {
-    [rel: string]: {
+export type LinkHeader = Record<
+    string,
+    {
         URI: string;
         rel: string;
         title?: string;
-    };
-}
+    }
+>;
 
 export const headerParser = {
     Link(value: string): LinkHeader {
@@ -67,20 +69,25 @@ export function parseHeaders(raw: string): Response['headers'] {
                 key = key.replace(/(^[a-z]|-[a-z])/g, char =>
                     char.toUpperCase()
                 );
-
                 return [key, headerParser[key]?.(value) ?? value];
             }
         )
     );
 }
 
-export function request<B>({
+export interface RequestResult<B> {
+    response: Promise<Response<B>>;
+    upload?: Observable<ProgressEvent>;
+    download?: Observable<ProgressEvent>;
+}
+
+export function requestXHR<B>({
     method = 'GET',
     path,
     headers = {},
     body,
     ...rest
-}: Request) {
+}: Request): RequestResult<B> {
     const request = new XMLHttpRequest(),
         header_list =
             headers instanceof Array
@@ -90,7 +97,7 @@ export function request<B>({
                 : Object.entries(headers);
 
     return {
-        response: new Promise<Response<B>>((resolve, reject) => {
+        response: new Promise((resolve, reject) => {
             request.onload = () =>
                 resolve({
                     status: request.status,
@@ -112,4 +119,61 @@ export function request<B>({
         upload: Observable.fromEvent<ProgressEvent>(request.upload, 'progress'),
         download: Observable.fromEvent<ProgressEvent>(request, 'progress')
     };
+}
+
+export async function requestFetch<B>({
+    path,
+    method,
+    headers,
+    withCredentials,
+    body,
+    timeout,
+    responseType
+}: Request): Promise<Response<B>> {
+    const controller = timeout ? new AbortController() : undefined;
+
+    const response = await Promise.race([
+        fetch(path + '', {
+            method,
+            headers,
+            credentials: withCredentials ? 'include' : 'omit',
+            body,
+            signal: controller?.signal
+        }),
+        controller &&
+            sleep(timeout / 1000).then(() => {
+                controller.abort();
+
+                throw new RangeError('Timed out');
+            })
+    ]);
+
+    const header = parseHeaders(
+            [...response.headers]
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n')
+        ),
+        data =
+            responseType === 'text'
+                ? await response.text()
+                : responseType === 'document'
+                ? parseDOM(await response.text())
+                : responseType === 'json'
+                ? await response.json()
+                : responseType === 'arraybuffer'
+                ? await response.arrayBuffer()
+                : await response.blob();
+
+    return {
+        status: response.status,
+        statusText: response.statusText,
+        headers: header,
+        body: data
+    };
+}
+
+export function request<B>(options: Request): RequestResult<B> {
+    return typeof globalThis.XMLHttpRequest === 'function'
+        ? requestXHR<B>(options)
+        : { response: requestFetch<B>(options) };
 }
