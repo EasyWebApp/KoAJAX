@@ -1,7 +1,26 @@
 import { Observable } from 'iterable-observer';
-import { stringifyDOM } from 'web-utility';
+import { stringifyDOM, formToJSON } from 'web-utility';
 
 import { request } from './HTTPRequest';
+
+export async function parseDocument(response: Response) {
+    const text = await response.text(),
+        [type] = response.headers.get('Content-Type')?.split(';') || [];
+
+    return new DOMParser().parseFromString(
+        text,
+        (type as DOMParserSupportedType) || 'text/html'
+    );
+}
+
+export function makeFormData(data: Record<string, any>) {
+    const formData = new FormData();
+
+    for (const [key, value] of Object.entries(data))
+        formData.append(key, value);
+
+    return formData;
+}
 
 export async function blobOf(URI: string | URL) {
     const { body } = await request<Blob>({ path: URI, responseType: 'blob' })
@@ -11,35 +30,82 @@ export async function blobOf(URI: string | URL) {
 }
 
 export function serializeNode(root: Node) {
-    var data: string | FormData, type: string;
+    var contentType: string;
 
-    if (root instanceof HTMLFormElement) {
-        data = new FormData(root);
+    if (!(root instanceof HTMLFormElement))
+        return {
+            contentType:
+                root instanceof SVGElement
+                    ? 'image/svg'
+                    : root instanceof HTMLDocument ||
+                      root instanceof HTMLElement
+                    ? 'text/html'
+                    : 'application/xml',
+            data: stringifyDOM(root)
+        };
 
-        if (root.querySelector('input[type="file"][name]'))
-            type = 'multipart/form-data';
-        else {
-            const form = [...data];
+    if (root.querySelector('input[type="file"][name]'))
+        return {
+            contentType: 'multipart/form-data',
+            data: new FormData(root)
+        };
+    const data = formToJSON<Record<string, any>>(root);
 
-            switch ((type = root.enctype)) {
-                case 'text/plain':
-                    data = form
-                        .map(([name, value]) => `${name}=${value}`)
-                        .join('\n');
-                    break;
-                case 'application/x-www-form-urlencoded':
-                    data = new URLSearchParams(form as string[][]) + '';
-            }
-        }
-    } else if (root instanceof HTMLElement)
-        (data = root.outerHTML), (type = 'text/html');
-    else {
-        data = stringifyDOM(root);
-
-        type = root instanceof SVGElement ? 'image/svg' : 'application/xml';
+    switch ((contentType = root.enctype)) {
+        case 'text/plain':
+            return {
+                contentType,
+                data: Object.entries(data)
+                    .map(([name, value]) => `${name}=${value}`)
+                    .join('\n')
+            };
+        case 'application/x-www-form-urlencoded':
+            return {
+                contentType,
+                data: new URLSearchParams(data) + ''
+            };
+        default:
+            return {
+                contentType: 'application/json',
+                data: JSON.stringify(data)
+            };
     }
+}
 
-    return { data, type };
+export function serialize(data: any, contentType?: string) {
+    const [type] = contentType?.split(';') || [];
+
+    switch (type) {
+        case 'application/x-www-form-urlencoded':
+            return {
+                contentType,
+                data: new URLSearchParams(data) + ''
+            };
+        case 'multipart/form-data':
+            return { contentType, data: makeFormData(data) };
+        case 'application/json':
+            return { contentType, data: JSON.stringify(data) };
+        case 'text/html':
+        case 'application/xml':
+        case 'image/svg':
+            return { contentType, data: stringifyDOM(data) };
+    }
+    if (type) return { data, contentType };
+
+    try {
+        return {
+            contentType: 'application/json',
+            data: JSON.stringify(data)
+        };
+    } catch {
+        try {
+            return serializeNode(data);
+        } catch {
+            throw new Error(
+                'Unserialized Object needs a specific Content-Type'
+            );
+        }
+    }
 }
 
 enum FileMethod {

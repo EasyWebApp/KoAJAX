@@ -18,12 +18,10 @@ npm install koajax
 
 `index.html`
 
-```HTML
+```html
 <head>
-    <script
-        crossorigin
-        src="https://polyfill.app/api/polyfill?features=es.string.match-all,es.object.from-entries,regenerator-runtime"
-    ></script>
+    <script src="https://polyfill.web-cell.dev/feature/Regenerator.js"></script>
+    <script src="https://polyfill.web-cell.dev/feature/ECMAScript.js"></script>
 </head>
 ```
 
@@ -36,7 +34,8 @@ npm install koajax jsdom
 `index.js`
 
 ```javascript
-import { polyfill, HTTPClient } from 'koajax';
+import { HTTPClient } from 'koajax';
+import { polyfill } from 'koajax/source/polyfill'
 
 const origin = 'https://your-target-origin.com';
 

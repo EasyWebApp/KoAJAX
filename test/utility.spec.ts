@@ -49,8 +49,8 @@ describe('HTTP utility', () => {
 
             expect(serializeNode(form)).toEqual(
                 expect.objectContaining({
-                    data: 'test=1&test=3&example=4',
-                    type: 'application/x-www-form-urlencoded'
+                    data: 'test=1%2C3&example=4',
+                    contentType: 'application/x-www-form-urlencoded'
                 })
             );
 
@@ -58,8 +58,8 @@ describe('HTTP utility', () => {
 
             expect(serializeNode(form)).toEqual(
                 expect.objectContaining({
-                    data: 'test=1\ntest=3\nexample=4',
-                    type: 'text/plain'
+                    data: 'test=1,3\nexample=4',
+                    contentType: 'text/plain'
                 })
             );
         });

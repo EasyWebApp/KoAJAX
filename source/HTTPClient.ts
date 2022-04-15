@@ -7,7 +7,7 @@ import {
     BodyRequestMethods,
     HTTPError
 } from './HTTPRequest';
-import { serializeNode } from './utility';
+import { serialize } from './utility';
 
 const { splice } = Array.prototype;
 
@@ -45,30 +45,13 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     }
 
     defaultWare: Middleware<T> = async ({ request, response }, next) => {
-        const { method = 'GET', headers, body } = request;
+        const { method = 'GET', headers = {}, body } = request;
 
-        if (method in BodyRequestMethods && body) {
-            if (body instanceof Node && !(body instanceof Document)) {
-                const { type, data } = serializeNode(body);
+        if (method in BodyRequestMethods && body && typeof body === 'object') {
+            const { contentType, data } = serialize(body);
 
-                (headers['Content-Type'] = type), (request.body = data);
-            } else if (typeof body === 'object') {
-                if (
-                    headers['Content-Type']?.startsWith(
-                        'application/x-www-form-urlencoded'
-                    )
-                )
-                    request.body = new URLSearchParams(body);
-                else
-                    try {
-                        headers['Content-Type'] =
-                            headers['Content-Type'] || 'application/json';
-
-                        request.body = JSON.stringify(body);
-
-                        request.responseType = request.responseType || 'json';
-                    } catch {}
-            }
+            headers['Content-Type'] = contentType;
+            request.body = data;
         }
         await next();
 

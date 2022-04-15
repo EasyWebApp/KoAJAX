@@ -1,5 +1,7 @@
 import { Observable } from 'iterable-observer';
-import { sleep, parseDOM } from 'web-utility';
+import { sleep } from 'web-utility';
+
+import { parseDocument } from './utility';
 
 export enum BodyRequestMethods {
     POST = 'POST',
@@ -131,38 +133,38 @@ export async function requestFetch<B>({
     responseType
 }: Request): Promise<Response<B>> {
     const controller = timeout ? new AbortController() : undefined;
+    const timer =
+        timeout &&
+        sleep(timeout / 1000).then(() => {
+            controller.abort();
 
-    const response = await Promise.race([
-        fetch(path + '', {
-            method,
-            headers,
-            credentials: withCredentials ? 'include' : 'omit',
-            body,
-            signal: controller?.signal
-        }),
-        controller &&
-            sleep(timeout / 1000).then(() => {
-                controller.abort();
-
-                throw new RangeError('Timed out');
-            })
-    ]);
+            throw new RangeError('Timed out');
+        });
+    const fetchResult = fetch(path + '', {
+        method,
+        headers,
+        credentials: withCredentials ? 'include' : 'omit',
+        body,
+        signal: controller?.signal
+    });
+    const response = await (timer
+        ? Promise.race([timer, fetchResult])
+        : fetchResult);
 
     const header = parseHeaders(
             [...response.headers]
                 .map(([key, value]) => `${key}: ${value}`)
                 .join('\n')
         ),
-        data =
-            responseType === 'text'
-                ? await response.text()
-                : responseType === 'document'
-                ? parseDOM(await response.text())
-                : responseType === 'json'
-                ? await response.json()
-                : responseType === 'arraybuffer'
-                ? await response.arrayBuffer()
-                : await response.blob();
+        data = await (responseType === 'text'
+            ? response.text()
+            : responseType === 'document'
+            ? parseDocument(response)
+            : responseType === 'json'
+            ? response.json()
+            : responseType === 'arraybuffer'
+            ? response.arrayBuffer()
+            : response.blob());
 
     return {
         status: response.status,

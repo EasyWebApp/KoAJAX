@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "0.8.0-rc.1",
+    "version": "0.8.0-rc.3",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -26,20 +26,20 @@
     "module": "dist/index.esm.js",
     "dependencies": {
         "iterable-observer": "1.0.0-rc.0",
-        "web-utility": "^3.6.1"
+        "web-utility": "^3.6.2"
     },
     "peerDependencies": {
         "jsdom": "^19.0.0"
     },
     "devDependencies": {
-        "@babel/core": "^7.17.8",
+        "@babel/core": "^7.17.9",
         "@babel/plugin-proposal-optional-chaining": "^7.16.7",
         "@babel/plugin-transform-typescript": "^7.16.8",
         "@types/core-js": "^2.5.5",
         "@types/jest": "^27.4.1",
         "@types/jsdom": "^16.2.14",
-        "@types/node": "^14.18.12",
-        "core-js": "^3.21.1",
+        "@types/node": "^14.18.13",
+        "core-js": "^3.22.0",
         "cross-env": "^7.0.3",
         "husky": "^7.0.4",
         "jest": "^27.5.1",
@@ -47,10 +47,10 @@
         "lint-staged": "^12.3.7",
         "microbundle": "^0.14.2",
         "open-cli": "^7.0.1",
-        "prettier": "^2.6.1",
+        "prettier": "^2.6.2",
         "ts-jest": "^27.1.4",
-        "typedoc": "^0.22.13",
-        "typescript": "~4.4.4"
+        "typedoc": "^0.22.15",
+        "typescript": "~4.6.3"
     },
     "prettier": {
         "singleQuote": true,
