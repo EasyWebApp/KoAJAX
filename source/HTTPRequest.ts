@@ -152,11 +152,12 @@ export async function requestFetch<B>({
         : fetchResult);
 
     const header = parseHeaders(
-            [...response.headers]
-                .map(([key, value]) => `${key}: ${value}`)
-                .join('\n')
-        ),
-        data = await (responseType === 'text'
+        [...response.headers]
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n')
+    );
+    if (response.status !== 204)
+        var data = await (responseType === 'text'
             ? response.text()
             : responseType === 'document'
             ? parseDocument(response)

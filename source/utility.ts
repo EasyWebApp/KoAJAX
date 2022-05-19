@@ -1,8 +1,6 @@
 import { Observable } from 'iterable-observer';
 import { stringifyDOM, formToJSON } from 'web-utility';
 
-import { request } from './HTTPRequest';
-
 export async function parseDocument(response: Response) {
     const text = await response.text(),
         [type] = response.headers.get('Content-Type')?.split(';') || [];
@@ -20,13 +18,6 @@ export function makeFormData(data: Record<string, any>) {
         formData.append(key, value);
 
     return formData;
-}
-
-export async function blobOf(URI: string | URL) {
-    const { body } = await request<Blob>({ path: URI, responseType: 'blob' })
-        .response;
-
-    return body;
 }
 
 export function serializeNode(root: Node) {

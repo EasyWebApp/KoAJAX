@@ -48,8 +48,10 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         const { method = 'GET', headers = {}, body } = request;
 
         if (method in BodyRequestMethods && body && typeof body === 'object') {
-            const { contentType, data } = serialize(body);
-
+            const { contentType, data } = serialize(
+                body,
+                headers['Content-Type']
+            );
             headers['Content-Type'] = contentType;
             request.body = data;
         }
