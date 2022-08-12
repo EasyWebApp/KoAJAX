@@ -25,7 +25,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     options: RequestOptions;
 
     constructor({
-        baseURI = document.baseURI,
+        baseURI = globalThis.document?.baseURI,
         ...options
     }: ClientOptions = {}) {
         super();
