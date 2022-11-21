@@ -87,8 +87,12 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         return data;
     }
 
-    get<B>(path: Request['path'], headers?: Request['headers']) {
-        return this.request<B>({ path, headers });
+    get<B>(
+        path: Request['path'],
+        body?: Request['body'],
+        headers?: Request['headers']
+    ) {
+        return this.request<B>({ path, headers, body });
     }
 
     post<B>(
