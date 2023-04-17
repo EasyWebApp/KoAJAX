@@ -15,6 +15,6 @@
         "excludeExternals": true,
         "excludePrivate": true,
         "readme": "./ReadMe.md",
-        "out": "docs/"
+        "plugin": ["typedoc-plugin-mdn-links"]
     }
 }

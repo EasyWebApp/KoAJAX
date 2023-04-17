@@ -52,7 +52,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
                 body,
                 headers['Content-Type']
             );
-            headers['Content-Type'] = contentType;
+            if (contentType) headers['Content-Type'] = contentType;
             request.body = data;
         }
         await next();
@@ -88,7 +88,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     }
 
     get<B>(path: Request['path'], headers?: Request['headers']) {
-        return this.request<B>({ path, headers });
+        return this.request<B>({ method: 'GET', path, headers });
     }
 
     post<B>(

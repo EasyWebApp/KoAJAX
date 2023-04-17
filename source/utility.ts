@@ -73,7 +73,7 @@ export function serialize(data: any, contentType?: string) {
                 data: new URLSearchParams(data) + ''
             };
         case 'multipart/form-data':
-            return { contentType, data: makeFormData(data) };
+            return { data: makeFormData(data) };
         case 'application/json':
             return { contentType, data: JSON.stringify(data) };
         case 'text/html':
