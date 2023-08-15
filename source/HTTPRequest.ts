@@ -157,16 +157,21 @@ export async function requestFetch<B>({
             .join('\n')
     );
     if (response.status !== 204)
-        var data = await (responseType === 'text'
-            ? response.text()
-            : responseType === 'document'
-            ? parseDocument(response)
-            : responseType === 'json'
-            ? response.json()
-            : responseType === 'arraybuffer'
-            ? response.arrayBuffer()
-            : response.blob());
+        try {
+            var backup = response.clone();
 
+            var data: B = await (responseType === 'text'
+                ? response.text()
+                : responseType === 'document'
+                ? parseDocument(response)
+                : responseType === 'json'
+                ? response.json()
+                : responseType === 'arraybuffer'
+                ? response.arrayBuffer()
+                : response.blob());
+        } catch {
+            var data = (await backup.arrayBuffer()) as B;
+        }
     return {
         status: response.status,
         statusText: response.statusText,
