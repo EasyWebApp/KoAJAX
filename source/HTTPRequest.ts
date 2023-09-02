@@ -1,6 +1,5 @@
 import { Observable } from 'iterable-observer';
-import { sleep } from 'web-utility';
-
+import { parseJSON, sleep } from 'web-utility';
 import { parseDocument } from './utility';
 
 export enum BodyRequestMethods {
@@ -53,18 +52,17 @@ export type LinkHeader = Record<
 >;
 
 export const headerParser = {
-    Link(value: string): LinkHeader {
-        return Object.fromEntries(
+    Link: (value: string): LinkHeader =>
+        Object.fromEntries(
             Array.from(
                 value.matchAll(/<(\S+?)>; rel="(\w+)"(?:; title="(.*?)")?/g),
                 ([_, URI, rel, title]) => [rel, { rel, URI, title }]
             )
-        );
-    }
+        )
 };
 
-export function parseHeaders(raw: string): Response['headers'] {
-    return Object.fromEntries(
+export const parseHeaders = (raw: string): Response['headers'] =>
+    Object.fromEntries(
         Array.from(
             raw.trim().matchAll(/^([\w-]+):\s*(.*)/gm),
             ([_, key, value]) => {
@@ -75,6 +73,15 @@ export function parseHeaders(raw: string): Response['headers'] {
             }
         )
     );
+export function parseBody<T>(raw: string, contentType: string): T {
+    if (contentType.includes('json')) return parseJSON(raw);
+
+    if (contentType.match(/html|xml/))
+        try {
+            return parseDocument(raw, contentType) as T;
+        } catch {}
+
+    return new TextEncoder().encode(raw).buffer as T;
 }
 
 export interface RequestResult<B> {
@@ -98,26 +105,35 @@ export function requestXHR<B>({
                 ? [...(headers as Iterable<string[]>)]
                 : Object.entries(headers);
 
+    const response = new Promise<Response<B>>((resolve, reject) => {
+        request.onload = () =>
+            resolve({
+                status: request.status,
+                statusText: request.statusText,
+                headers: parseHeaders(request.getAllResponseHeaders()),
+                body: request.response || request.responseText
+            });
+        request.onerror = request.ontimeout = reject;
+
+        request.open(method, path + '');
+
+        for (const [key, value] of header_list)
+            request.setRequestHeader(key, value);
+
+        Object.assign(request, rest);
+
+        request.send(body);
+    }).then(({ body, ...meta }) => {
+        const contentType = request.getResponseHeader('Content-Type') || '';
+
+        if (typeof body === 'string' && !contentType.includes('text'))
+            body = parseBody(body, contentType);
+
+        return { ...meta, body };
+    });
+
     return {
-        response: new Promise((resolve, reject) => {
-            request.onload = () =>
-                resolve({
-                    status: request.status,
-                    statusText: request.statusText,
-                    headers: parseHeaders(request.getAllResponseHeaders()),
-                    body: request.response
-                });
-            request.onerror = request.ontimeout = reject;
-
-            request.open(method, path + '');
-
-            for (const [key, value] of header_list)
-                request.setRequestHeader(key, value);
-
-            Object.assign(request, rest);
-
-            request.send(body);
-        }),
+        response,
         upload: Observable.fromEvent<ProgressEvent>(request.upload, 'progress'),
         download: Observable.fromEvent<ProgressEvent>(request, 'progress')
     };
@@ -158,19 +174,22 @@ export async function requestFetch<B>({
     );
     if (response.status !== 204)
         try {
-            var backup = response.clone();
+            var contentType = response.headers.get('Content-Type') || '',
+                backup = response.clone();
 
             var data: B = await (responseType === 'text'
                 ? response.text()
                 : responseType === 'document'
-                ? parseDocument(response)
+                ? parseDocument(await response.text(), contentType)
                 : responseType === 'json'
                 ? response.json()
                 : responseType === 'arraybuffer'
                 ? response.arrayBuffer()
                 : response.blob());
         } catch {
-            var data = (await backup.arrayBuffer()) as B;
+            const text = await backup.text();
+
+            var data = parseBody<B>(text, contentType);
         }
     return {
         status: response.status,

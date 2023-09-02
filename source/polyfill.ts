@@ -12,8 +12,10 @@ export async function polyfill(origin: string) {
         'HTMLElement',
         'HTMLFormElement',
         'SVGElement',
+        'DOMParser',
         'XMLSerializer',
         'FormData',
+        'TextEncoder',
         'XMLHttpRequest',
         'FileReader'
     ])

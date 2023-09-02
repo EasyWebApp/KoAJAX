@@ -1,9 +1,8 @@
 import { Observable } from 'iterable-observer';
 import { stringifyDOM, formToJSON } from 'web-utility';
 
-export async function parseDocument(response: Response) {
-    const text = await response.text(),
-        [type] = response.headers.get('Content-Type')?.split(';') || [];
+export async function parseDocument(text: string, contentType = '') {
+    const [type] = contentType?.split(';') || [];
 
     return new DOMParser().parseFromString(
         text,

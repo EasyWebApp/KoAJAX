@@ -22,6 +22,7 @@ npm install koajax
 <head>
     <script src="https://polyfill.web-cell.dev/feature/Regenerator.js"></script>
     <script src="https://polyfill.web-cell.dev/feature/ECMAScript.js"></script>
+    <script src="https://polyfill.web-cell.dev/feature/TextEncoder.js"></script>
 </head>
 ```
 
