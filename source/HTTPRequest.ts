@@ -74,6 +74,8 @@ export const parseHeaders = (raw: string): Response['headers'] =>
         )
     );
 export function parseBody<T>(raw: string, contentType: string): T {
+    if (contentType.includes('text')) return raw as T;
+
     if (contentType.includes('json')) return parseJSON(raw);
 
     if (contentType.match(/html|xml/))

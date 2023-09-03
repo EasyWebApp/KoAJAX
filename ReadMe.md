@@ -8,6 +8,27 @@
 
 [![NPM](https://nodei.co/npm/koajax.png?downloads=true&downloadRank=true&stars=true)][5]
 
+## Feature
+
+### Request Body
+
+Automatic Serialized types:
+
+1. Pure text: `string`
+2. Form encoding: `URLSearchParams`, `FormData`
+3. DOM object: `Node`
+4. JSON object: `Object`
+5. Binary data: `Blob`, `ArrayBuffer`, TypedArray, `DataView`
+6. Stream object: `ReadableStream`
+
+### Response Body
+
+Automatic Parsed type:
+
+1. HTML/XML: `Document`
+2. JSON: `Object`
+3. Binary data: `ArrayBuffer`
+
 ## Usage
 
 ### Browser

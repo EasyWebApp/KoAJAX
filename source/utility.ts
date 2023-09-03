@@ -1,5 +1,5 @@
 import { Observable } from 'iterable-observer';
-import { stringifyDOM, formToJSON } from 'web-utility';
+import { isTypedArray, stringifyDOM, formToJSON } from 'web-utility';
 
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
@@ -62,14 +62,14 @@ export function serializeNode(root: Node) {
     }
 }
 
-export function serialize(data: any, contentType?: string) {
+export function serialize<T>(data: T, contentType?: string) {
     const [type] = contentType?.split(';') || [];
 
     switch (type) {
         case 'application/x-www-form-urlencoded':
             return {
                 contentType,
-                data: new URLSearchParams(data) + ''
+                data: new URLSearchParams(data as Record<string, any>)
             };
         case 'multipart/form-data':
             return { data: makeFormData(data) };
@@ -78,24 +78,48 @@ export function serialize(data: any, contentType?: string) {
         case 'text/html':
         case 'application/xml':
         case 'image/svg':
-            return { contentType, data: stringifyDOM(data) };
+            return { contentType, data: stringifyDOM(data as Node) };
     }
     if (type) return { data, contentType };
+
+    try {
+        if (data instanceof URLSearchParams)
+            return {
+                contentType: 'application/x-www-form-urlencoded',
+                data
+            };
+    } catch {}
+
+    try {
+        if (data instanceof FormData) return { data };
+    } catch {}
+
+    try {
+        if (data instanceof Node) return serializeNode(data);
+    } catch {}
+
+    try {
+        if (
+            isTypedArray(data) ||
+            data instanceof ArrayBuffer ||
+            data instanceof DataView ||
+            data instanceof Blob ||
+            data instanceof ReadableStream
+        )
+            return {
+                contentType: 'application/octet-stream',
+                data
+            };
+    } catch {}
 
     try {
         return {
             contentType: 'application/json',
             data: JSON.stringify(data)
         };
-    } catch {
-        try {
-            return serializeNode(data);
-        } catch {
-            throw new Error(
-                'Unserialized Object needs a specific Content-Type'
-            );
-        }
-    }
+    } catch {}
+
+    throw new Error('Unserialized Object needs a specific Content-Type');
 }
 
 enum FileMethod {
