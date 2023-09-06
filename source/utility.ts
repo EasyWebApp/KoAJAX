@@ -1,5 +1,5 @@
 import { Observable } from 'iterable-observer';
-import { isTypedArray, stringifyDOM, formToJSON } from 'web-utility';
+import { likeArray, isTypedArray, stringifyDOM, formToJSON } from 'web-utility';
 
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
@@ -13,8 +13,13 @@ export async function parseDocument(text: string, contentType = '') {
 export function makeFormData(data: Record<string, any>) {
     const formData = new FormData();
 
-    for (const [key, value] of Object.entries(data))
-        formData.append(key, value);
+    for (const [key, value] of Object.entries(data)) {
+        const list = (
+            typeof value !== 'string' && likeArray(value) ? value : [value]
+        ) as ArrayLike<string | Blob>;
+
+        Array.from(list, item => item != null && formData.append(key, item));
+    }
 
     return formData;
 }

@@ -1,6 +1,7 @@
 import 'core-js/es/object/from-entries';
 import 'core-js/es/string/match-all';
-import { parseHeaders, serializeNode } from '../source';
+
+import { makeFormData, parseHeaders, serializeNode } from '../source';
 
 describe('HTTP utility', () => {
     describe('Parse Headers', () => {
@@ -26,6 +27,28 @@ describe('HTTP utility', () => {
                         }
                     }
                 })
+            );
+        });
+    });
+
+    describe('Form Data', () => {
+        it('should make a Form Data instance from a Plain Object', () => {
+            const formData = makeFormData({
+                a: 1,
+                b: [2, 3, null, undefined],
+                c: new Blob()
+            });
+            const entries = [...formData];
+
+            expect(entries.filter(([key]) => key === 'a')).toEqual([
+                ['a', '1']
+            ]);
+            expect(entries.filter(([key]) => key === 'b')).toEqual([
+                ['b', '2'],
+                ['b', '3']
+            ]);
+            expect(entries.find(([key]) => key === 'c')?.[1]).toBeInstanceOf(
+                Blob
             );
         });
     });
