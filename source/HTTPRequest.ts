@@ -104,8 +104,8 @@ export function requestXHR<B>({
             headers instanceof Array
                 ? headers
                 : headers?.[Symbol.iterator] instanceof Function
-                ? [...(headers as Iterable<string[]>)]
-                : Object.entries(headers);
+                  ? [...(headers as Iterable<string[]>)]
+                  : Object.entries(headers);
 
     const response = new Promise<Response<B>>((resolve, reject) => {
         request.onload = () =>
@@ -158,6 +158,26 @@ export async function requestFetch<B>({
 
             throw new RangeError('Timed out');
         });
+    headers =
+        headers instanceof Headers
+            ? Object.fromEntries(headers.entries())
+            : headers instanceof Array
+              ? Object.fromEntries(headers)
+              : headers;
+    headers =
+        responseType === 'text'
+            ? { ...headers, Accept: 'text/plain' }
+            : responseType === 'json'
+              ? { ...headers, Accept: 'application/json' }
+              : responseType === 'document'
+                ? {
+                      ...headers,
+                      Accept: 'text/html, application/xhtml+xml, application/xml'
+                  }
+                : responseType === 'arraybuffer' || responseType === 'blob'
+                  ? { ...headers, Accept: 'application/octet-stream' }
+                  : headers;
+
     const fetchResult = fetch(path + '', {
         method,
         headers,
@@ -182,12 +202,12 @@ export async function requestFetch<B>({
             var data: B = await (responseType === 'text'
                 ? response.text()
                 : responseType === 'document'
-                ? parseDocument(await response.text(), contentType)
-                : responseType === 'json'
-                ? response.json()
-                : responseType === 'arraybuffer'
-                ? response.arrayBuffer()
-                : response.blob());
+                  ? parseDocument(await response.text(), contentType)
+                  : responseType === 'json'
+                    ? response.json()
+                    : responseType === 'arraybuffer'
+                      ? response.arrayBuffer()
+                      : response.blob());
         } catch {
             const text = await backup.text();
 
