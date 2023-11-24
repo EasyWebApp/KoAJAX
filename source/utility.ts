@@ -18,9 +18,12 @@ export function makeFormData(data: Record<string, any>) {
             typeof value !== 'string' && likeArray(value) ? value : [value]
         ) as ArrayLike<string | Blob>;
 
-        Array.from(list, item => item != null && formData.append(key, item));
+        for (const item of Array.from(list))
+            if (item != null)
+                if (typeof item === 'object')
+                    formData.append(key, item, (item as File).name);
+                else formData.append(key, item);
     }
-
     return formData;
 }
 
@@ -33,9 +36,9 @@ export function serializeNode(root: Node) {
                 root instanceof SVGElement
                     ? 'image/svg'
                     : root instanceof HTMLDocument ||
-                      root instanceof HTMLElement
-                    ? 'text/html'
-                    : 'application/xml',
+                        root instanceof HTMLElement
+                      ? 'text/html'
+                      : 'application/xml',
             data: stringifyDOM(root)
         };
 
