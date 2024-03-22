@@ -20,6 +20,11 @@ export interface ClientOptions extends RequestOptions {
     baseURI?: string;
 }
 
+export interface DownloadOptions extends Pick<Request, 'headers'> {
+    chunkSize?: number;
+    range?: [number?, number?];
+}
+
 export class HTTPClient<T extends Context> extends Stack<T> {
     baseURI: string;
     options: RequestOptions;
@@ -141,5 +146,36 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             headers,
             body
         });
+    }
+
+    async *download(
+        path: Request['path'],
+        {
+            headers,
+            chunkSize = 1024 ** 2 * 10,
+            range: [start = 0, end] = []
+        }: DownloadOptions
+    ) {
+        const { 'Content-Length': length, 'Accept-Ranges': rangeType } =
+            await this.head(path, headers);
+        end ||= +length;
+
+        if (rangeType !== 'bytes' || +length <= chunkSize) {
+            const { body } = await this.get<ArrayBuffer>(path, headers);
+            yield body;
+            return;
+        }
+
+        for (
+            let i = start, j = i - 1 + chunkSize;
+            i < end;
+            i = j + 1, j += chunkSize
+        ) {
+            const { body } = await this.get<ArrayBuffer>(path, {
+                ...headers,
+                Range: `bytes=${i}-${j}`
+            });
+            yield body;
+        }
     }
 }
