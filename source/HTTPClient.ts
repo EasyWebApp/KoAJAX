@@ -25,6 +25,12 @@ export interface DownloadOptions extends Pick<Request, 'headers'> {
     range?: [number?, number?];
 }
 
+export interface TransferProgress
+    extends Pick<ProgressEvent, 'total' | 'loaded'> {
+    percent: number;
+    buffer: ArrayBuffer;
+}
+
 export class HTTPClient<T extends Context> extends Stack<T> {
     baseURI: string;
     options: RequestOptions;
@@ -154,28 +160,34 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             headers,
             chunkSize = 1024 ** 2 * 10,
             range: [start = 0, end] = []
-        }: DownloadOptions
-    ) {
-        const { 'Content-Length': length, 'Accept-Ranges': rangeType } =
-            await this.head(path, headers);
-        end ||= +length;
+        }: DownloadOptions = {}
+    ): AsyncGenerator<TransferProgress> {
+        const { 'Content-Length': length } = await this.head(path, headers);
 
-        if (rangeType !== 'bytes' || +length <= chunkSize) {
-            const { body } = await this.get<ArrayBuffer>(path, headers);
-            yield body;
-            return;
-        }
+        const total = +length;
+        end ||= total;
 
         for (
             let i = start, j = i - 1 + chunkSize;
             i < end;
             i = j + 1, j += chunkSize
         ) {
-            const { body } = await this.get<ArrayBuffer>(path, {
+            const { status, body } = await this.get<ArrayBuffer>(path, {
                 ...headers,
                 Range: `bytes=${i}-${j}`
             });
-            yield body;
+            if (status !== 206) {
+                yield { total, loaded: total, percent: 100, buffer: body };
+                break;
+            }
+            const loaded = i + body.byteLength;
+
+            yield {
+                total,
+                loaded,
+                percent: +((loaded / total) * 100).toFixed(2),
+                buffer: body
+            };
         }
     }
 }

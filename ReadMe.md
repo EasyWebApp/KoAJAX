@@ -97,6 +97,8 @@ client.get('/path/to/your/API').then(console.log);
 
 ### Up/Download files
 
+#### Single HTTP request based on XMLHTTPRequest `progress` events
+
 (based on [Iterable Observer][6])
 
 ```javascript
@@ -123,10 +125,40 @@ document.querySelector('input[type="file"]').onchange = async ({
 };
 ```
 
+#### Multiple HTTP requests based on `Range` header
+
+```shell
+npm i native-file-system-adapter  # Web standard API polyfill
+```
+
+```javascript
+import { showSaveFilePicker } from 'native-file-system-adapter';
+import { HTTPClient } from 'koajax';
+
+const bufferClient = new HTTPClient({ responseType: 'arraybuffer' });
+
+document.querySelector('#download').onclick = async () => {
+    const fileURL = 'https://your.server/with/Range/header/supported/file.zip';
+    const suggestedName = fileURL.split('/').at(-1);
+
+    const fileHandle = await showSaveFilePicker({ suggestedName });
+    const writer = await fileHandle.createWritable(),
+        stream = bufferClient.download();
+
+    for await (const { total, loaded, percent, buffer } of stream) {
+        writer.write(buffer);
+
+        console.table({ total, loaded, percent });
+    }
+    write.close();
+    window.alert(`File ${fileHandle.name} downloaded successfully!`);
+};
+```
+
 ### Global Error fallback
 
 ```shell
-npm install browser-unhandled-rejection
+npm install browser-unhandled-rejection  # Web standard API polyfill
 ```
 
 ```javascript
