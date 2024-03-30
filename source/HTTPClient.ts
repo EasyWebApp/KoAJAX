@@ -20,6 +20,17 @@ export interface ClientOptions extends RequestOptions {
     baseURI?: string;
 }
 
+export interface DownloadOptions extends Pick<Request, 'headers'> {
+    chunkSize?: number;
+    range?: [number?, number?];
+}
+
+export interface TransferProgress
+    extends Pick<ProgressEvent, 'total' | 'loaded'> {
+    percent: number;
+    buffer: ArrayBuffer;
+}
+
 export class HTTPClient<T extends Context> extends Stack<T> {
     baseURI: string;
     options: RequestOptions;
@@ -141,5 +152,42 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             headers,
             body
         });
+    }
+
+    async *download(
+        path: Request['path'],
+        {
+            headers,
+            chunkSize = 1024 ** 2 * 10,
+            range: [start = 0, end] = []
+        }: DownloadOptions = {}
+    ): AsyncGenerator<TransferProgress> {
+        const { 'Content-Length': length } = await this.head(path, headers);
+
+        const total = +length;
+        end ||= total;
+
+        for (
+            let i = start, j = i - 1 + chunkSize;
+            i < end;
+            i = j + 1, j += chunkSize
+        ) {
+            const { status, body } = await this.get<ArrayBuffer>(path, {
+                ...headers,
+                Range: `bytes=${i}-${j}`
+            });
+            if (status !== 206) {
+                yield { total, loaded: total, percent: 100, buffer: body };
+                break;
+            }
+            const loaded = i + body.byteLength;
+
+            yield {
+                total,
+                loaded,
+                percent: +((loaded / total) * 100).toFixed(2),
+                buffer: body
+            };
+        }
     }
 }
