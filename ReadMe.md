@@ -143,14 +143,14 @@ document.querySelector('#download').onclick = async () => {
 
     const fileHandle = await showSaveFilePicker({ suggestedName });
     const writer = await fileHandle.createWritable(),
-        stream = bufferClient.download();
+        stream = bufferClient.download(fileURL);
 
     for await (const { total, loaded, percent, buffer } of stream) {
         writer.write(buffer);
 
         console.table({ total, loaded, percent });
     }
-    write.close();
+    writer.close();
     window.alert(`File ${fileHandle.name} downloaded successfully!`);
 };
 ```
