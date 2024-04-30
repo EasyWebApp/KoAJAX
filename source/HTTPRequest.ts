@@ -1,5 +1,6 @@
 import { Observable } from 'iterable-observer';
-import { parseJSON, sleep } from 'web-utility';
+import { parseJSON } from 'web-utility';
+
 import { parseDocument } from './utility';
 
 export enum BodyRequestMethods {
@@ -20,6 +21,7 @@ export interface Request extends RequestOptions {
     path: string | URL;
     headers?: HeadersInit;
     body?: BodyInit | HTMLFormElement | any;
+    signal?: AbortSignal;
 }
 
 export interface Response<B = Request['body']> {
@@ -97,6 +99,7 @@ export function requestXHR<B>({
     path,
     headers = {},
     body,
+    signal,
     ...rest
 }: Request): RequestResult<B> {
     const request = new XMLHttpRequest(),
@@ -106,6 +109,9 @@ export function requestXHR<B>({
                 : headers?.[Symbol.iterator] instanceof Function
                   ? [...(headers as Iterable<string[]>)]
                   : Object.entries(headers);
+    const abort = () => request.abort();
+
+    signal?.addEventListener('abort', abort);
 
     const response = new Promise<Response<B>>((resolve, reject) => {
         request.onload = () =>
@@ -126,6 +132,8 @@ export function requestXHR<B>({
 
         request.send(body);
     }).then(({ body, ...meta }) => {
+        signal?.removeEventListener('abort', abort);
+
         const contentType = request.getResponseHeader('Content-Type') || '';
 
         if (typeof body === 'string' && !contentType.includes('text'))
@@ -150,14 +158,8 @@ export async function requestFetch<B>({
     timeout,
     responseType
 }: Request): Promise<Response<B>> {
-    const controller = timeout ? new AbortController() : undefined;
-    const timer =
-        timeout &&
-        sleep(timeout / 1000).then(() => {
-            controller.abort();
+    const signal = AbortSignal.timeout(timeout);
 
-            throw new RangeError('Timed out');
-        });
     headers =
         headers instanceof Headers
             ? Object.fromEntries(headers.entries())
@@ -178,17 +180,13 @@ export async function requestFetch<B>({
                   ? { ...headers, Accept: 'application/octet-stream' }
                   : headers;
 
-    const fetchResult = fetch(path + '', {
+    const response = await fetch(path + '', {
         method,
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal: controller?.signal
+        signal
     });
-    const response = await (timer
-        ? Promise.race([timer, fetchResult])
-        : fetchResult);
-
     const header = parseHeaders(
         [...response.headers]
             .map(([key, value]) => `${key}: ${value}`)
