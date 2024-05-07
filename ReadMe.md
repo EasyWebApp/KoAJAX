@@ -154,7 +154,7 @@ document.querySelector('#download').onclick = async () => {
         }
         window.alert(`File ${fileHandle.name} downloaded successfully!`);
     } finally {
-        writer.close();
+        await writer.close();
     }
 };
 ```

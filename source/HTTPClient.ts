@@ -158,24 +158,43 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         path: Request['path'],
         {
             headers,
-            chunkSize = 1024 ** 2 * 10,
-            range: [start = 0, end] = []
+            chunkSize = 1024 ** 2,
+            range: [start = 0, end = Infinity] = []
         }: DownloadOptions = {}
     ): AsyncGenerator<TransferProgress> {
-        const { 'Content-Length': length } = await this.head(path, headers);
+        var total = 0;
 
-        const total = +length;
-        end ||= total;
+        function setEndAsHeader(length: number) {
+            total = length;
+
+            if (end === Infinity) end = total;
+        }
+
+        try {
+            const { 'Content-Length': length } = await this.head(path, headers);
+
+            setEndAsHeader(+length);
+        } catch (error) {
+            console.error(error);
+        }
 
         for (
             let i = start, j = i - 1 + chunkSize;
             i < end;
             i = j + 1, j += chunkSize
         ) {
-            const { status, body } = await this.get<ArrayBuffer>(path, {
+            const {
+                status,
+                headers: { 'Content-Range': range },
+                body
+            } = await this.get<ArrayBuffer>(path, {
                 ...headers,
                 Range: `bytes=${i}-${j}`
             });
+            const totalBytes = +(range as string)?.split('/').pop();
+
+            if (totalBytes) setEndAsHeader(totalBytes);
+
             if (status !== 206) {
                 yield { total, loaded: total, percent: 100, buffer: body };
                 break;
