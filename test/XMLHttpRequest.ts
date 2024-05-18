@@ -2,14 +2,23 @@ import { EventEmitter } from 'events';
 import { Request } from '../source';
 
 export class XMLHttpRequest extends EventEmitter {
-    onload?: () => any;
+    readyState = 0;
+
+    onreadystatechange?: () => any;
     onerror?: () => any;
 
     responseURL: string;
     responseType: XMLHttpRequestResponseType;
 
+    #updateReadyState(state: number) {
+        this.readyState = state;
+        this.onreadystatechange?.();
+    }
+
     open(method: Request['method'], URI: string) {
         this.responseURL = URI;
+
+        this.#updateReadyState(1);
     }
 
     setRequestHeader() {}
@@ -22,7 +31,13 @@ export class XMLHttpRequest extends EventEmitter {
     response: any;
 
     send(body: Request['body']) {
+        setTimeout(() => this.#updateReadyState(2));
+
+        setTimeout(() => this.#updateReadyState(3));
+
         setTimeout(() => {
+            if (this.readyState > 3) return;
+
             this.status = Number(this.responseURL.split('/').slice(-1)[0]);
 
             switch (this.status) {
@@ -47,8 +62,13 @@ export class XMLHttpRequest extends EventEmitter {
                 this.responseText = JSON.stringify(this.response);
             else this.response = JSON.stringify(this.response);
 
-            if (this.onload instanceof Function) this.onload();
+            this.#updateReadyState(4);
         });
+    }
+
+    abort() {
+        this.status = 0;
+        this.#updateReadyState(4);
     }
 
     getResponseHeader(name: string) {

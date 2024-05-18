@@ -1,5 +1,6 @@
 import { Observable } from 'iterable-observer';
-import { parseJSON, sleep } from 'web-utility';
+import { parseJSON } from 'web-utility';
+
 import { parseDocument } from './utility';
 
 export enum BodyRequestMethods {
@@ -20,6 +21,7 @@ export interface Request extends RequestOptions {
     path: string | URL;
     headers?: HeadersInit;
     body?: BodyInit | HTMLFormElement | any;
+    signal?: AbortSignal;
 }
 
 export interface Response<B = Request['body']> {
@@ -97,6 +99,7 @@ export function requestXHR<B>({
     path,
     headers = {},
     body,
+    signal,
     ...rest
 }: Request): RequestResult<B> {
     const request = new XMLHttpRequest(),
@@ -106,15 +109,23 @@ export function requestXHR<B>({
                 : headers?.[Symbol.iterator] instanceof Function
                   ? [...(headers as Iterable<string[]>)]
                   : Object.entries(headers);
+    const abort = () => request.abort();
+
+    signal?.addEventListener('abort', abort);
 
     const response = new Promise<Response<B>>((resolve, reject) => {
-        request.onload = () =>
+        request.onreadystatechange = () => {
+            if (request.readyState !== 4) return;
+
+            if (!request.status && !signal?.aborted) return;
+
             resolve({
                 status: request.status,
                 statusText: request.statusText,
                 headers: parseHeaders(request.getAllResponseHeaders()),
                 body: request.response || request.responseText
             });
+        };
         request.onerror = request.ontimeout = reject;
 
         request.open(method, path + '');
@@ -126,6 +137,8 @@ export function requestXHR<B>({
 
         request.send(body);
     }).then(({ body, ...meta }) => {
+        signal?.throwIfAborted();
+
         const contentType = request.getResponseHeader('Content-Type') || '';
 
         if (typeof body === 'string' && !contentType.includes('text'))
@@ -133,6 +146,8 @@ export function requestXHR<B>({
 
         return { ...meta, body };
     });
+
+    response.finally(() => signal?.removeEventListener('abort', abort));
 
     return {
         response,
@@ -147,17 +162,15 @@ export async function requestFetch<B>({
     headers,
     withCredentials,
     body,
+    signal,
     timeout,
     responseType
 }: Request): Promise<Response<B>> {
-    const controller = timeout ? new AbortController() : undefined;
-    const timer =
-        timeout &&
-        sleep(timeout / 1000).then(() => {
-            controller.abort();
+    const mergedSignal = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(timeout)
+    ]);
 
-            throw new RangeError('Timed out');
-        });
     headers =
         headers instanceof Headers
             ? Object.fromEntries(headers.entries())
@@ -178,17 +191,13 @@ export async function requestFetch<B>({
                   ? { ...headers, Accept: 'application/octet-stream' }
                   : headers;
 
-    const fetchResult = fetch(path + '', {
+    const response = await fetch(path + '', {
         method,
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal: controller?.signal
+        signal: mergedSignal
     });
-    const response = await (timer
-        ? Promise.race([timer, fetchResult])
-        : fetchResult);
-
     const header = parseHeaders(
         [...response.headers]
             .map(([key, value]) => `${key}: ${value}`)

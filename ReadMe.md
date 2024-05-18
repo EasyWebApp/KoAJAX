@@ -44,6 +44,7 @@ npm install koajax
     <script src="https://polyfill.web-cell.dev/feature/Regenerator.js"></script>
     <script src="https://polyfill.web-cell.dev/feature/ECMAScript.js"></script>
     <script src="https://polyfill.web-cell.dev/feature/TextEncoder.js"></script>
+    <script src="https://polyfill.web-cell.dev/feature/AbortController.js"></script>
 </head>
 ```
 
@@ -139,19 +140,22 @@ const bufferClient = new HTTPClient({ responseType: 'arraybuffer' });
 
 document.querySelector('#download').onclick = async () => {
     const fileURL = 'https://your.server/with/Range/header/supported/file.zip';
-    const suggestedName = fileURL.split('/').at(-1);
+    const suggestedName = new URL(fileURL).pathname.split('/').pop();
 
     const fileHandle = await showSaveFilePicker({ suggestedName });
     const writer = await fileHandle.createWritable(),
         stream = bufferClient.download(fileURL);
 
-    for await (const { total, loaded, percent, buffer } of stream) {
-        writer.write(buffer);
+    try {
+        for await (const { total, loaded, percent, buffer } of stream) {
+            await writer.write(buffer);
 
-        console.table({ total, loaded, percent });
+            console.table({ total, loaded, percent });
+        }
+        window.alert(`File ${fileHandle.name} downloaded successfully!`);
+    } finally {
+        await writer.close();
     }
-    writer.close();
-    window.alert(`File ${fileHandle.name} downloaded successfully!`);
 };
 ```
 

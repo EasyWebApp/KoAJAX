@@ -17,7 +17,8 @@ export async function polyfill(origin: string) {
         'FormData',
         'TextEncoder',
         'XMLHttpRequest',
+        'AbortSignal',
         'FileReader'
     ])
-        globalThis[key] = window[key];
+        globalThis[key] ||= window[key];
 }
