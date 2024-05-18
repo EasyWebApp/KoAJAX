@@ -64,7 +64,7 @@ describe('HTTP Client', () => {
     });
 
     it('should invoke Custom Middlewares', async () => {
-        const data = [];
+        const data: any[] = [];
 
         client.use(async ({ request: { path }, response }, next) => {
             data.push(path);
@@ -77,5 +77,17 @@ describe('HTTP Client', () => {
         await client.get('/200');
 
         expect(data).toEqual(expect.arrayContaining(['/200', 200]));
+    });
+
+    it('should throw Abort Error as Abort Signal emitted', async () => {
+        const controller = new AbortController();
+
+        setTimeout(() => controller.abort());
+
+        try {
+            await client.get('/200', {}, { signal: controller.signal });
+        } catch (error) {
+            expect(error).toBeInstanceOf(DOMException);
+        }
     });
 });

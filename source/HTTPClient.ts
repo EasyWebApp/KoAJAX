@@ -20,7 +20,13 @@ export interface ClientOptions extends RequestOptions {
     baseURI?: string;
 }
 
-export interface DownloadOptions extends Pick<Request, 'headers'> {
+export type MethodOptions = Omit<
+    Request,
+    'method' | 'path' | 'headers' | 'body'
+>;
+
+export interface DownloadOptions
+    extends Pick<Request, 'headers' | 'withCredentials' | 'signal'> {
     chunkSize?: number;
     range?: [number?, number?];
 }
@@ -89,68 +95,85 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         return context.response;
     }
 
-    async head(path: Request['path'], headers?: Request['headers']) {
+    async head(
+        path: Request['path'],
+        headers?: Request['headers'],
+        options?: MethodOptions
+    ) {
         const { headers: data } = await this.request({
             method: 'HEAD',
             path,
-            headers
+            headers,
+            ...options
         });
         return data;
     }
 
-    get<B>(path: Request['path'], headers?: Request['headers']) {
-        return this.request<B>({ method: 'GET', path, headers });
+    get<B>(
+        path: Request['path'],
+        headers?: Request['headers'],
+        options?: MethodOptions
+    ) {
+        return this.request<B>({ method: 'GET', path, headers, ...options });
     }
 
     post<B>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers']
+        headers?: Request['headers'],
+        options?: MethodOptions
     ) {
         return this.request<B>({
             method: 'POST',
             path,
             headers,
-            body
+            body,
+            ...options
         });
     }
 
     put<B>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers']
+        headers?: Request['headers'],
+        options?: MethodOptions
     ) {
         return this.request<B>({
             method: 'PUT',
             path,
             headers,
-            body
+            body,
+            ...options
         });
     }
 
     patch<B>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers']
+        headers?: Request['headers'],
+        options?: MethodOptions
     ) {
         return this.request<B>({
             method: 'PATCH',
             path,
             headers,
-            body
+            body,
+            ...options
         });
     }
 
     delete<B>(
         path: Request['path'],
         body?: Request['body'],
-        headers?: Request['headers']
+        headers?: Request['headers'],
+        options?: MethodOptions
     ) {
         return this.request<B>({
             method: 'DELETE',
             path,
             headers,
-            body
+            body,
+            ...options
         });
     }
 
@@ -159,7 +182,8 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         {
             headers,
             chunkSize = 1024 ** 2,
-            range: [start = 0, end = Infinity] = []
+            range: [start = 0, end = Infinity] = [],
+            ...options
         }: DownloadOptions = {}
     ): AsyncGenerator<TransferProgress> {
         var total = 0;
@@ -171,8 +195,11 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         }
 
         try {
-            const { 'Content-Length': length } = await this.head(path, headers);
-
+            const { 'Content-Length': length } = await this.head(
+                path,
+                headers,
+                options
+            );
             setEndAsHeader(+length);
         } catch (error) {
             console.error(error);
@@ -187,10 +214,11 @@ export class HTTPClient<T extends Context> extends Stack<T> {
                 status,
                 headers: { 'Content-Range': range },
                 body
-            } = await this.get<ArrayBuffer>(path, {
-                ...headers,
-                Range: `bytes=${i}-${j}`
-            });
+            } = await this.get<ArrayBuffer>(
+                path,
+                { ...headers, Range: `bytes=${i}-${j}` },
+                options
+            );
             const totalBytes = +(range as string)?.split('/').pop();
 
             if (totalBytes) setEndAsHeader(totalBytes);

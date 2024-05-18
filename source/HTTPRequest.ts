@@ -114,13 +114,18 @@ export function requestXHR<B>({
     signal?.addEventListener('abort', abort);
 
     const response = new Promise<Response<B>>((resolve, reject) => {
-        request.onload = () =>
+        request.onreadystatechange = () => {
+            if (request.readyState !== 4) return;
+
+            if (!request.status && !signal?.aborted) return;
+
             resolve({
                 status: request.status,
                 statusText: request.statusText,
                 headers: parseHeaders(request.getAllResponseHeaders()),
                 body: request.response || request.responseText
             });
+        };
         request.onerror = request.ontimeout = reject;
 
         request.open(method, path + '');
@@ -132,7 +137,7 @@ export function requestXHR<B>({
 
         request.send(body);
     }).then(({ body, ...meta }) => {
-        signal?.removeEventListener('abort', abort);
+        signal?.throwIfAborted();
 
         const contentType = request.getResponseHeader('Content-Type') || '';
 
@@ -141,6 +146,8 @@ export function requestXHR<B>({
 
         return { ...meta, body };
     });
+
+    response.finally(() => signal?.removeEventListener('abort', abort));
 
     return {
         response,
@@ -155,10 +162,14 @@ export async function requestFetch<B>({
     headers,
     withCredentials,
     body,
+    signal,
     timeout,
     responseType
 }: Request): Promise<Response<B>> {
-    const signal = AbortSignal.timeout(timeout);
+    const mergedSignal = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(timeout)
+    ]);
 
     headers =
         headers instanceof Headers
@@ -185,7 +196,7 @@ export async function requestFetch<B>({
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal
+        signal: mergedSignal
     });
     const header = parseHeaders(
         [...response.headers]

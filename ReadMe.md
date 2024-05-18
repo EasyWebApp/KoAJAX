@@ -140,7 +140,7 @@ const bufferClient = new HTTPClient({ responseType: 'arraybuffer' });
 
 document.querySelector('#download').onclick = async () => {
     const fileURL = 'https://your.server/with/Range/header/supported/file.zip';
-    const suggestedName = fileURL.split('/').at(-1);
+    const suggestedName = new URL(fileURL).pathname.split('/').pop();
 
     const fileHandle = await showSaveFilePicker({ suggestedName });
     const writer = await fileHandle.createWritable(),
@@ -148,7 +148,7 @@ document.querySelector('#download').onclick = async () => {
 
     try {
         for await (const { total, loaded, percent, buffer } of stream) {
-            writer.write(buffer);
+            await writer.write(buffer);
 
             console.table({ total, loaded, percent });
         }
