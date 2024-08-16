@@ -75,7 +75,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         await next();
 
         if (response.status > 299)
-            throw new HTTPError(response.statusText, response);
+            throw new HTTPError(response.statusText, request, response);
     };
 
     use(...middlewares: Middleware<T>[]) {

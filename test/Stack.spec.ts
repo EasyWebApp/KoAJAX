@@ -2,7 +2,7 @@ import { Stack } from '../source';
 
 describe('Stack', () => {
     const stack = new Stack<{ count: number }>(),
-        list = [];
+        list: number[] = [];
 
     it('should append Middlewares', () => {
         stack.use(
@@ -22,12 +22,12 @@ describe('Stack', () => {
     it('should execute Middlewares in order', async () => {
         await stack.execute({ count: 0 });
 
-        expect(list).toEqual(expect.arrayContaining([0, 1, 2]));
+        expect(list).toEqual([0, 1, 2]);
     });
 
     it('should catch Errors by next()', async () => {
         const stack = new Stack<{ error: Error }>(),
-            context = { error: null };
+            context = {} as { error: Error };
 
         stack.use(
             async (context, next) => {
@@ -49,7 +49,7 @@ describe('Stack', () => {
 
     it('should execute only one Stack Path while Stacks nested', async () => {
         const stack = new Stack<{ deep: boolean }>(),
-            list = [];
+            list: number[] = [];
 
         stack.use(async (_, next) => {
             list.push(0);
@@ -68,12 +68,12 @@ describe('Stack', () => {
 
         await stack.execute({ deep: true });
 
-        expect(list).toEqual(expect.arrayContaining([0, 1, 2]));
+        expect(list).toEqual([0, 2, 1]);
 
         list.length = 0;
 
         await stack.execute({ deep: false });
 
-        expect(list).toEqual(expect.arrayContaining([0, 1, 3]));
+        expect(list).toEqual([0, 3, 1]);
     });
 });

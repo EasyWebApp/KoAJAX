@@ -1,33 +1,36 @@
 import 'core-js/es/object/from-entries';
 import 'core-js/es/string/match-all';
 
-import { makeFormData, parseHeaders, serializeNode } from '../source';
+import {
+    encodeBase64,
+    makeFormData,
+    parseHeaders,
+    readAs,
+    serializeNode
+} from '../source';
 
 describe('HTTP utility', () => {
     describe('Parse Headers', () => {
         it('should parse Link header to Object', () => {
-            expect(
-                parseHeaders(
-                    'link:' +
-                        [
-                            '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2>; rel="next"',
-                            '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34>; rel="last"'
-                        ]
-                )
-            ).toEqual(
-                expect.objectContaining({
-                    Link: {
-                        next: {
-                            rel: 'next',
-                            URI: 'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2'
-                        },
-                        last: {
-                            rel: 'last',
-                            URI: 'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34'
-                        }
-                    }
-                })
+            const meta = parseHeaders(
+                'link:' +
+                    [
+                        '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2>; rel="next"',
+                        '<https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34>; rel="last"'
+                    ]
             );
+            expect(meta).toEqual({
+                Link: {
+                    next: {
+                        rel: 'next',
+                        URI: 'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=2'
+                    },
+                    last: {
+                        rel: 'last',
+                        URI: 'https://api.github.com/search/code?q=addClass+user%3Amozilla&page=34'
+                    }
+                }
+            });
         });
     });
 
@@ -68,23 +71,34 @@ describe('HTTP utility', () => {
                 <input type="file">
             </form>`;
 
-            const form = document.forms[0];
+            const [form] = document.forms;
 
-            expect(serializeNode(form)).toEqual(
-                expect.objectContaining({
-                    data: 'test=1%2C3&example=4',
-                    contentType: 'application/x-www-form-urlencoded'
-                })
-            );
-
+            expect(serializeNode(form)).toEqual({
+                data: 'test=1%2C3&example=4',
+                contentType: 'application/x-www-form-urlencoded'
+            });
             form.enctype = 'text/plain';
 
-            expect(serializeNode(form)).toEqual(
-                expect.objectContaining({
-                    data: 'test=1,3\nexample=4',
-                    contentType: 'text/plain'
-                })
-            );
+            expect(serializeNode(form)).toEqual({
+                data: 'test=1,3\nexample=4',
+                contentType: 'text/plain'
+            });
+        });
+    });
+
+    describe('Blob', () => {
+        const text = '😂';
+        const blob = new Blob([text], { type: 'text/plain' });
+
+        it('should read a Blob as a Text', async () => {
+            const text = await readAs(blob, 'text').result;
+
+            expect(text).toBe('😂');
+        });
+
+        it('should encode an Unicode string or blob to a Base64 string', async () => {
+            expect(await encodeBase64(text)).toBe('8J+Ygg==');
+            expect(await encodeBase64(blob)).toBe('8J+Ygg==');
         });
     });
 });

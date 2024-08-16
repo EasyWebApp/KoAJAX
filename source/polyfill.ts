@@ -1,4 +1,4 @@
-export async function polyfill(origin: string) {
+export async function polyfill(origin = 'http://127.0.0.1') {
     if (globalThis.XMLHttpRequest) return;
 
     const { JSDOM } = await import('jsdom');

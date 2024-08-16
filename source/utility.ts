@@ -193,3 +193,21 @@ export function readAs(
         })
     };
 }
+
+const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
+/**
+ * @param  raw - Binary data
+ *
+ * @return  Base64 encoded data
+ */
+export async function encodeBase64(raw: string | Blob) {
+    if (raw instanceof Blob) {
+        const text = await readAs(raw, 'dataURL').result;
+
+        return (DataURI.exec(text as string) || '')[4];
+    }
+    const text = encodeURIComponent(raw).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+        String.fromCharCode(+('0x' + p1))
+    );
+    return btoa(text);
+}
