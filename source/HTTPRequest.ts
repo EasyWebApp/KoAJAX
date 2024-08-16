@@ -32,15 +32,12 @@ export interface Response<B = Request['body']> {
 }
 
 export class HTTPError<B = Request['body']> extends URIError {
-    status: number;
-    statusText: string;
-    headers: Response<B>['headers'];
-    body?: B;
-
-    constructor(message: string, response: Response) {
+    constructor(
+        message: string,
+        public request: Request,
+        public response: Response<B>
+    ) {
         super(message);
-
-        Object.assign(this, response);
     }
 }
 

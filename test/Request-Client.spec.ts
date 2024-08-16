@@ -48,10 +48,12 @@ describe('HTTP Client', () => {
         } catch (error) {
             expect({ ...error }).toEqual(
                 expect.objectContaining({
-                    status: 404,
-                    statusText: 'Not Found',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: { message: 'Hello, Error!' }
+                    response: {
+                        status: 404,
+                        statusText: 'Not Found',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: { message: 'Hello, Error!' }
+                    }
                 })
             );
         }

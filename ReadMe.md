@@ -171,16 +171,12 @@ import { HTTPError } from 'koajax';
 
 auto();
 
-self.addEventListener('unhandledrejection', event => {
-    if (!(event.reason instanceof URIError)) return;
+window.addEventListener('unhandledrejection', ({ reason }) => {
+    if (!(reason instanceof HTTPError)) return;
 
-    const { message } = (event.reason as HTTPError).body;
+    const { message } = reason.response.body;
 
-    if (!message) return;
-
-    event.preventDefault();
-
-    self.alert(message);
+    if (message) window.alert(message);
 });
 ```
 
