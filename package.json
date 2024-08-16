@@ -28,6 +28,7 @@
         "@swc/helpers": "^0.5.12",
         "iterable-observer": "^1.1.0",
         "regenerator-runtime": "^0.14.1",
+        "web-streams-polyfill": "^4.0.0",
         "web-utility": "^4.4.0"
     },
     "peerDependencies": {

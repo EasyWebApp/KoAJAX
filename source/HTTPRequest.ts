@@ -1,3 +1,4 @@
+import 'web-streams-polyfill/polyfill/es5';
 import { Observable } from 'iterable-observer';
 import { parseJSON } from 'web-utility';
 
@@ -85,10 +86,12 @@ export function parseBody<T>(raw: string, contentType: string): T {
     return new TextEncoder().encode(raw).buffer as T;
 }
 
+export type ProgressData = Pick<ProgressEvent, 'total' | 'loaded'>;
+
 export interface RequestResult<B> {
     response: Promise<Response<B>>;
-    upload?: Observable<ProgressEvent>;
-    download?: Observable<ProgressEvent>;
+    upload?: Observable<ProgressData>;
+    download: Observable<ProgressData>;
 }
 
 export function requestXHR<B>({
@@ -153,7 +156,7 @@ export function requestXHR<B>({
     };
 }
 
-export async function requestFetch<B>({
+export function requestFetch<B>({
     path,
     method,
     headers,
@@ -162,11 +165,10 @@ export async function requestFetch<B>({
     signal,
     timeout,
     responseType
-}: Request): Promise<Response<B>> {
-    const mergedSignal = AbortSignal.any([
-        signal,
-        AbortSignal.timeout(timeout)
-    ]);
+}: Request): RequestResult<B> {
+    const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
+        Boolean
+    );
 
     headers =
         headers instanceof Headers
@@ -188,13 +190,26 @@ export async function requestFetch<B>({
                   ? { ...headers, Accept: 'application/octet-stream' }
                   : headers;
 
-    const response = await fetch(path + '', {
+    const responsePromise = fetch(path + '', {
         method,
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal: mergedSignal
+        signal: signals[0] && AbortSignal.any(signals)
     });
+    const response = responsePromise.then(response =>
+        parseFetchBody<B>(response, responseType)
+    );
+    return {
+        response,
+        download: Observable.from(iterateFetchBody(responsePromise))
+    };
+}
+
+export async function parseFetchBody<B>(
+    response: globalThis.Response,
+    responseType: Request['responseType']
+): Promise<Response<B>> {
     const header = parseHeaders(
         [...response.headers]
             .map(([key, value]) => `${key}: ${value}`)
@@ -227,8 +242,19 @@ export async function requestFetch<B>({
     };
 }
 
-export function request<B>(options: Request): RequestResult<B> {
-    return typeof globalThis.XMLHttpRequest === 'function'
-        ? requestXHR<B>(options)
-        : { response: requestFetch<B>(options) };
+export async function* iterateFetchBody(
+    responsePromise: Promise<globalThis.Response>
+) {
+    const response = await responsePromise;
+
+    for await (const chunk of response.clone().body)
+        yield {
+            total: +response.headers.get('Content-Length'),
+            loaded: (chunk as Uint8Array).byteLength
+        };
 }
+
+export const request = <B>(options: Request): RequestResult<B> =>
+    typeof globalThis.XMLHttpRequest === 'function'
+        ? requestXHR<B>(options)
+        : requestFetch<B>(options);

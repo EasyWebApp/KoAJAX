@@ -17,6 +17,9 @@ importers:
       regenerator-runtime:
         specifier: ^0.14.1
         version: 0.14.1
+      web-streams-polyfill:
+        specifier: ^4.0.0
+        version: 4.0.0
       web-utility:
         specifier: ^4.4.0
         version: 4.4.0(typescript@5.5.4)
@@ -2590,6 +2593,10 @@ packages:
 
   weak-lru-cache@1.2.2:
     resolution: {integrity: sha512-DEAoo25RfSYMuTGc9vPJzZcZullwIqRDSI9LOy+fkCJPi6hykCnfKaXTuPBDuXAUcqHXyOgFtHNp/kB2FjYHbw==}
+
+  web-streams-polyfill@4.0.0:
+    resolution: {integrity: sha512-0zJXHRAYEjM2tUfZ2DiSOHAa2aw1tisnnhU3ufD57R8iefL+DcdJyRBRyJpG+NUimDgbTI/lH+gAE1PAvV3Cgw==}
+    engines: {node: '>= 8'}
 
   web-utility@4.4.0:
     resolution: {integrity: sha512-Bw0RcX5jBNuw+FQ2NKkkegNK07czjXoUtDNpRO+2ueNNv3FL8GsTTU27eM+17bzFPpYqukAdkCLJf5ZAYiDZtg==}
@@ -5715,6 +5722,8 @@ snapshots:
       makeerror: 1.0.12
 
   weak-lru-cache@1.2.2: {}
+
+  web-streams-polyfill@4.0.0: {}
 
   web-utility@4.4.0(typescript@5.5.4):
     dependencies:
