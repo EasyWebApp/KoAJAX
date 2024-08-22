@@ -1,6 +1,3 @@
-import 'core-js/es/object/from-entries';
-import 'core-js/es/string/match-all';
-
 import {
     encodeBase64,
     makeFormData,

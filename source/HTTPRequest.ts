@@ -1,8 +1,15 @@
+import 'core-js/es/object/from-entries';
+import 'core-js/es/string/match-all';
+import 'core-js/es/promise/with-resolvers';
 import 'web-streams-polyfill/polyfill/es5';
-import { Observable } from 'iterable-observer';
 import { parseJSON } from 'web-utility';
 
-import { parseDocument } from './utility';
+import {
+    parseDocument,
+    ProgressData,
+    readAs,
+    streamFromProgress
+} from './utility';
 
 export enum BodyRequestMethods {
     POST = 'POST',
@@ -86,12 +93,10 @@ export function parseBody<T>(raw: string, contentType: string): T {
     return new TextEncoder().encode(raw).buffer as T;
 }
 
-export type ProgressData = Pick<ProgressEvent, 'total' | 'loaded'>;
-
 export interface RequestResult<B> {
     response: Promise<Response<B>>;
-    upload?: Observable<ProgressData>;
-    download: Observable<ProgressData>;
+    upload?: AsyncGenerator<ProgressData>;
+    download: AsyncGenerator<ProgressData>;
 }
 
 export function requestXHR<B>({
@@ -151,8 +156,8 @@ export function requestXHR<B>({
 
     return {
         response,
-        upload: Observable.fromEvent<ProgressEvent>(request.upload, 'progress'),
-        download: Observable.fromEvent<ProgressEvent>(request, 'progress')
+        upload: streamFromProgress(request.upload),
+        download: streamFromProgress(request)
     };
 }
 
@@ -169,7 +174,6 @@ export function requestFetch<B>({
     const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
         Boolean
     );
-
     headers =
         headers instanceof Headers
             ? Object.fromEntries(headers.entries())
@@ -197,61 +201,78 @@ export function requestFetch<B>({
         body,
         signal: signals[0] && AbortSignal.any(signals)
     });
-    const response = responsePromise.then(response =>
-        parseFetchBody<B>(response, responseType)
-    );
+    const stream1 = Promise.withResolvers<ReadableStream<Uint8Array>>(),
+        stream2 = Promise.withResolvers<ReadableStream<Uint8Array>>();
+
+    responsePromise
+        .then(response => {
+            const streams = response.body.tee();
+
+            stream1.resolve(streams[0]);
+            stream2.resolve(streams[1]);
+        })
+        .catch(reason => {
+            stream1.reject(reason);
+            stream2.reject(reason);
+        });
+
     return {
-        response,
-        download: Observable.from(iterateFetchBody(responsePromise))
+        response: parseResponse(responsePromise, stream1.promise, responseType),
+        download: iterateFetchBody(responsePromise, stream2.promise)
     };
+}
+
+export async function parseResponse<B>(
+    responsePromise: Promise<globalThis.Response>,
+    streamPromise: Promise<ReadableStream<Uint8Array>>,
+    responseType: Request['responseType']
+): Promise<Response<B>> {
+    const response = await responsePromise;
+    const { status, statusText, headers } = response;
+    const contentType = headers.get('Content-Type') || '';
+
+    const header = parseHeaders(
+        [...headers].map(([key, value]) => `${key}: ${value}`).join('\n')
+    );
+    const stream = await streamPromise;
+    const body =
+        status === 204
+            ? undefined
+            : await parseFetchBody<B>(stream, contentType, responseType);
+
+    return { status, statusText, headers: header, body };
 }
 
 export async function parseFetchBody<B>(
-    response: globalThis.Response,
+    stream: ReadableStream<Uint8Array>,
+    contentType: string,
     responseType: Request['responseType']
-): Promise<Response<B>> {
-    const header = parseHeaders(
-        [...response.headers]
-            .map(([key, value]) => `${key}: ${value}`)
-            .join('\n')
-    );
-    if (response.status !== 204)
-        try {
-            var contentType = response.headers.get('Content-Type') || '',
-                backup = response.clone();
+) {
+    const chunks: Uint8Array[] = [];
 
-            var data: B = await (responseType === 'text'
-                ? response.text()
-                : responseType === 'document'
-                  ? parseDocument(await response.text(), contentType)
-                  : responseType === 'json'
-                    ? response.json()
-                    : responseType === 'arraybuffer'
-                      ? response.arrayBuffer()
-                      : response.blob());
-        } catch {
-            const text = await backup.text();
+    for await (const chunk of stream) chunks.push(chunk);
 
-            var data = parseBody<B>(text, contentType);
-        }
-    return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: header,
-        body: data
-    };
+    const blob = new Blob(chunks, { type: contentType });
+
+    if (responseType === 'blob') return blob as B;
+
+    if (responseType === 'arraybuffer') return blob.arrayBuffer() as B;
+
+    const text = (await readAs(blob, 'text').result) as string;
+
+    return parseBody<B>(text, contentType);
 }
 
 export async function* iterateFetchBody(
-    responsePromise: Promise<globalThis.Response>
+    responsePromise: Promise<globalThis.Response>,
+    bodyPromise: Promise<ReadableStream<Uint8Array>>
 ) {
-    const response = await responsePromise;
+    const response = await responsePromise,
+        body = await bodyPromise;
+    const total = +response.headers.get('Content-Length');
 
-    for await (const chunk of response.clone().body)
-        yield {
-            total: +response.headers.get('Content-Length'),
-            loaded: (chunk as Uint8Array).byteLength
-        };
+    for await (const { byteLength } of body)
+        yield { total, loaded: byteLength };
 }
 
 export const request = <B>(options: Request): RequestResult<B> =>

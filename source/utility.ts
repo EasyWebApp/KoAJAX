@@ -1,5 +1,10 @@
-import { Observable } from 'iterable-observer';
-import { likeArray, isTypedArray, stringifyDOM, formToJSON } from 'web-utility';
+import {
+    createAsyncIterator,
+    likeArray,
+    isTypedArray,
+    stringifyDOM,
+    formToJSON
+} from 'web-utility';
 
 /**
  * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/70}
@@ -169,6 +174,31 @@ export function serialize<T>(data: T, contentType?: string) {
     throw new Error('Unserialized Object needs a specific Content-Type');
 }
 
+export type ProgressEventTarget = Pick<
+    XMLHttpRequestEventTarget & FileReader,
+    'dispatchEvent' | 'addEventListener' | 'removeEventListener'
+>;
+export type ProgressData = Pick<ProgressEvent, 'total' | 'loaded'>;
+
+export const streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
+    createAsyncIterator<ProgressData, ProgressEvent<T>>(
+        ({ next, complete, error }) => {
+            const handleProgress = ({ loaded, total }: ProgressEvent) => {
+                if (loaded < total) next({ loaded, total });
+                else {
+                    if (loaded === total) next({ loaded, total });
+                    complete();
+                }
+            };
+            target.addEventListener('progress', handleProgress);
+            target.addEventListener('error', error);
+
+            return () => {
+                target.removeEventListener('progress', handleProgress);
+                target.removeEventListener('error', error);
+            };
+        }
+    );
 enum FileMethod {
     text = 'readAsText',
     dataURL = 'readAsDataURL',
@@ -182,16 +212,13 @@ export function readAs(
     encoding?: string
 ) {
     const reader = new FileReader();
+    const result = new Promise<string | ArrayBuffer>((resolve, reject) => {
+        reader.onerror = reject;
+        reader.onload = () => resolve(reader.result);
 
-    return {
-        progress: Observable.fromEvent<ProgressEvent>(reader, 'progress'),
-        result: new Promise<string | ArrayBuffer>((resolve, reject) => {
-            reader.onerror = reject;
-            reader.onload = () => resolve(reader.result);
-
-            reader[FileMethod[method]](file, encoding);
-        })
-    };
+        reader[FileMethod[method]](file, encoding);
+    });
+    return { progress: streamFromProgress(reader), result };
 }
 
 const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
