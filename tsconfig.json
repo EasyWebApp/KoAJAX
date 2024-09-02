@@ -4,7 +4,7 @@
         "moduleResolution": "Bundler",
         "esModuleInterop": true,
         "downlevelIteration": true,
-        "lib": ["ES2021", "DOM", "DOM.Iterable"],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "declaration": true,
         "skipLibCheck": true,
         "outDir": "dist/"

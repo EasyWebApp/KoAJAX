@@ -1,21 +1,27 @@
-import 'core-js/es/object/from-entries';
-import 'core-js/es/string/match-all';
-import { Observable } from 'iterable-observer';
-
-import { request, HTTPClient } from '../source';
+import { HTTPClient, request, requestFetch } from '../source';
 import { XMLHttpRequest } from './XMLHttpRequest';
 // @ts-ignore
 global.XMLHttpRequest = XMLHttpRequest;
 
 describe('HTTP Request', () => {
+    it('should return a Promise & 2 Observable with fetch()', async () => {
+        const { download, response } = requestFetch<{ login: string }>({
+            path: 'https://api.github.com/users/TechQuery',
+            responseType: 'json'
+        });
+        const { body } = await response;
+
+        expect(body).toMatchObject({ login: 'TechQuery' });
+    });
+
     it('should return a Promise & 2 Observable', async () => {
         const { upload, download, response } = request({
             path: '/200',
             responseType: 'json'
         });
 
-        expect(upload).toBeInstanceOf(Observable);
-        expect(download).toBeInstanceOf(Observable);
+        expect(Symbol.asyncIterator in upload!).toBeTruthy();
+        expect(Symbol.asyncIterator in download).toBeTruthy();
 
         expect(await response).toEqual({
             status: 200,
