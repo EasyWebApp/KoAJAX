@@ -100,7 +100,7 @@ client.get('/path/to/your/API').then(console.log);
 
 #### Single HTTP request based on XMLHTTPRequest `progress` events
 
-(based on [Iterable Observer][6])
+(based on [Async Generator][6])
 
 ```javascript
 import { request } from 'koajax';
@@ -182,7 +182,7 @@ window.addEventListener('unhandledrejection', ({ reason }) => {
 
 ### Read Files
 
-(based on [Iterable Observer][6])
+(based on [Async Generator][6])
 
 ```javascript
 import { readAs } from 'koajax';
@@ -210,4 +210,4 @@ document.querySelector('input[type="file"]').onchange = async ({
 [3]: https://github.com/EasyWebApp/KoAJAX/actions/workflows/main.yml
 [4]: https://www.jsdelivr.com/package/npm/koajax
 [5]: https://nodei.co/npm/koajax/
-[6]: https://web-cell.dev/iterable-observer/
+[6]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of#Iterating_over_async_generators
