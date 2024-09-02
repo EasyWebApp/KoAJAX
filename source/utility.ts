@@ -199,7 +199,7 @@ export const streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
             };
         }
     );
-enum FileMethod {
+export enum FileMethod {
     text = 'readAsText',
     dataURL = 'readAsDataURL',
     binaryString = 'readAsBinaryString',

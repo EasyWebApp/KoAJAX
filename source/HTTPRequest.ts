@@ -1,15 +1,10 @@
 import 'core-js/es/object/from-entries';
-import 'core-js/es/string/match-all';
 import 'core-js/es/promise/with-resolvers';
-import 'web-streams-polyfill/polyfill/es5';
+import 'core-js/es/string/match-all';
+import type { ReadableStream } from 'web-streams-polyfill';
 import { parseJSON } from 'web-utility';
 
-import {
-    parseDocument,
-    ProgressData,
-    readAs,
-    streamFromProgress
-} from './utility';
+import { parseDocument, ProgressData, streamFromProgress } from './utility';
 
 export enum BodyRequestMethods {
     POST = 'POST',
@@ -81,14 +76,14 @@ export const parseHeaders = (raw: string): Response['headers'] =>
         )
     );
 export function parseBody<T>(raw: string, contentType: string): T {
-    if (contentType.includes('text')) return raw as T;
-
     if (contentType.includes('json')) return parseJSON(raw);
 
     if (contentType.match(/html|xml/))
         try {
             return parseDocument(raw, contentType) as T;
         } catch {}
+
+    if (contentType.includes('text')) return raw as T;
 
     return new TextEncoder().encode(raw).buffer as T;
 }
@@ -201,46 +196,35 @@ export function requestFetch<B>({
         body,
         signal: signals[0] && AbortSignal.any(signals)
     });
-    const stream1 = Promise.withResolvers<ReadableStream<Uint8Array>>(),
-        stream2 = Promise.withResolvers<ReadableStream<Uint8Array>>();
-
-    responsePromise
-        .then(response => {
-            const streams = response.body.tee();
-
-            stream1.resolve(streams[0]);
-            stream2.resolve(streams[1]);
-        })
-        .catch(reason => {
-            stream1.reject(reason);
-            stream2.reject(reason);
-        });
 
     return {
-        response: parseResponse(responsePromise, stream1.promise, responseType),
-        download: iterateFetchBody(responsePromise, stream2.promise)
+        response: parseResponse(responsePromise, responseType),
+        download: iterateFetchBody(responsePromise)
     };
 }
 
 export async function parseResponse<B>(
     responsePromise: Promise<globalThis.Response>,
-    streamPromise: Promise<ReadableStream<Uint8Array>>,
     responseType: Request['responseType']
 ): Promise<Response<B>> {
-    const response = await responsePromise;
-    const { status, statusText, headers } = response;
+    const { status, statusText, headers, body } = (
+        await responsePromise
+    ).clone();
+
     const contentType = headers.get('Content-Type') || '';
 
     const header = parseHeaders(
         [...headers].map(([key, value]) => `${key}: ${value}`).join('\n')
     );
-    const stream = await streamPromise;
-    const body =
+    const rBody =
         status === 204
             ? undefined
-            : await parseFetchBody<B>(stream, contentType, responseType);
-
-    return { status, statusText, headers: header, body };
+            : await parseFetchBody<B>(
+                  body as ReadableStream<Uint8Array>,
+                  contentType,
+                  responseType
+              );
+    return { status, statusText, headers: header, body: rBody };
 }
 
 export async function parseFetchBody<B>(
@@ -258,21 +242,22 @@ export async function parseFetchBody<B>(
 
     if (responseType === 'arraybuffer') return blob.arrayBuffer() as B;
 
-    const text = (await readAs(blob, 'text').result) as string;
-
-    return parseBody<B>(text, contentType);
+    return parseBody<B>(await blob.text(), contentType);
 }
 
 export async function* iterateFetchBody(
-    responsePromise: Promise<globalThis.Response>,
-    bodyPromise: Promise<ReadableStream<Uint8Array>>
+    responsePromise: Promise<globalThis.Response>
 ) {
-    const response = await responsePromise,
-        body = await bodyPromise;
-    const total = +response.headers.get('Content-Length');
+    const { headers, body } = (await responsePromise).clone();
 
-    for await (const { byteLength } of body)
-        yield { total, loaded: byteLength };
+    const total = +headers.get('Content-Length');
+    var loaded = 0;
+
+    for await (const { byteLength } of body as ReadableStream<Uint8Array>) {
+        loaded += byteLength;
+
+        yield { total, loaded };
+    }
 }
 
 export const request = <B>(options: Request): RequestResult<B> =>

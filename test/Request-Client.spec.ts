@@ -1,5 +1,10 @@
-import { HTTPClient, request, requestFetch } from '../source';
+import { Blob } from 'buffer';
+
+import { HTTPClient, ProgressData, request, requestFetch } from '../source';
 import { XMLHttpRequest } from './XMLHttpRequest';
+// @ts-ignore
+// https://github.com/jsdom/jsdom/issues/2555#issuecomment-1864762292
+global.Blob = Blob;
 // @ts-ignore
 global.XMLHttpRequest = XMLHttpRequest;
 
@@ -9,6 +14,14 @@ describe('HTTP Request', () => {
             path: 'https://api.github.com/users/TechQuery',
             responseType: 'json'
         });
+        expect(Symbol.asyncIterator in download).toBeTruthy();
+
+        var progress: ProgressData = { loaded: 0, total: 0 };
+
+        for await (const part of download) progress = part;
+
+        expect(progress.loaded).toBeGreaterThanOrEqual(progress.total);
+
         const { body } = await response;
 
         expect(body).toMatchObject({ login: 'TechQuery' });

@@ -45,6 +45,7 @@ npm install koajax
     <script src="https://polyfill.web-cell.dev/feature/ECMAScript.js"></script>
     <script src="https://polyfill.web-cell.dev/feature/TextEncoder.js"></script>
     <script src="https://polyfill.web-cell.dev/feature/AbortController.js"></script>
+    <script src="https://polyfill.web-cell.dev/feature/Stream.js"></script>
 </head>
 ```
 
