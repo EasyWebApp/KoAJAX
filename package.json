@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -25,7 +25,7 @@
     "main": "dist/index.js",
     "module": "dist/index.esm.js",
     "dependencies": {
-        "@swc/helpers": "^0.5.12",
+        "@swc/helpers": "^0.5.13",
         "core-js": "^3.38.1",
         "regenerator-runtime": "^0.14.1",
         "web-streams-polyfill": "^4.0.0",

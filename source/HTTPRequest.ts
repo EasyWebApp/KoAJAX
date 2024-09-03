@@ -242,7 +242,11 @@ export async function parseFetchBody<B>(
 
     if (responseType === 'arraybuffer') return blob.arrayBuffer() as B;
 
-    return parseBody<B>(await blob.text(), contentType);
+    const text = await blob.text();
+
+    if (responseType === 'text') return text as B;
+
+    return parseBody<B>(text, contentType);
 }
 
 export async function* iterateFetchBody(
