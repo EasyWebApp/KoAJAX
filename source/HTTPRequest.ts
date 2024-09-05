@@ -115,15 +115,18 @@ export function requestXHR<B>({
 
     const response = new Promise<Response<B>>((resolve, reject) => {
         request.onreadystatechange = () => {
-            if (request.readyState !== 4) return;
+            const { readyState, status, statusText, responseType } = request;
 
-            if (!request.status && !signal?.aborted) return;
+            if (readyState !== 4 || (!status && !signal?.aborted)) return;
 
             resolve({
-                status: request.status,
-                statusText: request.statusText,
+                status,
+                statusText,
                 headers: parseHeaders(request.getAllResponseHeaders()),
-                body: request.response || request.responseText
+                body:
+                    responseType && responseType !== 'text'
+                        ? request.response
+                        : request.responseText
             });
         };
         request.onerror = request.ontimeout = reject;
