@@ -33,11 +33,13 @@ Automatic Parsed type:
 
 ### Browser
 
-```Shell
+#### Installation
+
+```shell
 npm install koajax
 ```
 
-`index.html`
+#### `index.html`
 
 ```html
 <head>
@@ -51,11 +53,13 @@ npm install koajax
 
 ### Node.js
 
+#### Installation
+
 ```shell
 npm install koajax jsdom
 ```
 
-`index.js`
+#### `index.ts`
 
 ```javascript
 import { HTTPClient } from 'koajax';
@@ -73,6 +77,16 @@ polyfill(origin).then(() => {
     console.log(body);
 });
 ```
+
+#### Execution
+
+```shell
+npx tsx index.ts
+```
+
+### Non-polyfillable runtimes
+
+1. https://github.com/idea2app/KoAJAX-Taro-adapter
 
 ## Example
 
