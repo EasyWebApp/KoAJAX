@@ -6,44 +6,46 @@ import {
     formToJSON
 } from 'web-utility';
 
-/**
- * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/70}
- */
-AbortSignal.prototype.throwIfAborted ||= function (this: AbortSignal) {
-    const { aborted, reason = 'Aborted' } = this;
+if (typeof globalThis.AbortSignal === 'function') {
+    /**
+     * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/70}
+     */
+    AbortSignal.prototype.throwIfAborted ||= function (this: AbortSignal) {
+        const { aborted, reason = 'Aborted' } = this;
 
-    if (!aborted) return;
+        if (!aborted) return;
 
-    throw reason instanceof DOMException
-        ? reason
-        : new DOMException(
-              reason instanceof Error ? reason.message : reason + '',
-              'AbortError'
-          );
-};
+        throw reason instanceof DOMException
+            ? reason
+            : new DOMException(
+                  reason instanceof Error ? reason.message : reason + '',
+                  'AbortError'
+              );
+    };
 
-/**
- * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/73#issuecomment-2085543258}
- */
-AbortSignal.any ||= (iterable: Iterable<AbortSignal>) => {
-    const controller = new AbortController();
+    /**
+     * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/73#issuecomment-2085543258}
+     */
+    AbortSignal.any ||= (iterable: Iterable<AbortSignal>) => {
+        const controller = new AbortController();
 
-    function abort(this: AbortSignal) {
-        controller.abort(this.reason);
-        clean();
-    }
-    function clean() {
+        function abort(this: AbortSignal) {
+            controller.abort(this.reason);
+            clean();
+        }
+        function clean() {
+            for (const signal of iterable)
+                signal.removeEventListener('abort', abort);
+        }
         for (const signal of iterable)
-            signal.removeEventListener('abort', abort);
-    }
-    for (const signal of iterable)
-        if (signal.aborted) {
-            controller.abort(signal.reason);
-            break;
-        } else signal.addEventListener('abort', abort);
+            if (signal.aborted) {
+                controller.abort(signal.reason);
+                break;
+            } else signal.addEventListener('abort', abort);
 
-    return controller.signal;
-};
+        return controller.signal;
+    };
+}
 
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
