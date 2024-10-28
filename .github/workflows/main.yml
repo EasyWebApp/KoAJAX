@@ -6,6 +6,9 @@ on:
 jobs:
     Build-and-Publish:
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            id-token: write
         steps:
             - uses: actions/checkout@v4
 
@@ -21,7 +24,7 @@ jobs:
               run: pnpm i --frozen-lockfile
 
             - name: Build & Publish
-              run: npm publish
+              run: npm publish --access public --provenance
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

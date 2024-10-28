@@ -267,7 +267,5 @@ export async function* iterateFetchBody(
     }
 }
 
-export const request = <B>(options: Request): RequestResult<B> =>
-    typeof globalThis.XMLHttpRequest === 'function'
-        ? requestXHR<B>(options)
-        : requestFetch<B>(options);
+export const request =
+    typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;

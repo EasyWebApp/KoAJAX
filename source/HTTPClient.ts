@@ -18,6 +18,7 @@ export interface Context {
 
 export interface ClientOptions extends RequestOptions {
     baseURI?: string;
+    baseRequest?: typeof request;
 }
 
 export type MethodOptions = Omit<
@@ -39,15 +40,19 @@ export interface TransferProgress
 
 export class HTTPClient<T extends Context> extends Stack<T> {
     baseURI: string;
+    baseRequest: typeof request;
     options: RequestOptions;
 
     constructor({
         baseURI = globalThis.document?.baseURI,
+        baseRequest = request,
         ...options
     }: ClientOptions = {}) {
         super();
 
-        (this.baseURI = baseURI), (this.options = options);
+        this.baseURI = baseURI;
+        this.baseRequest = baseRequest;
+        this.options = options;
 
         super.use(this.defaultWare);
 
@@ -56,7 +61,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
 
             Object.assign(
                 response,
-                await request({ ...options, ...data }).response
+                await this.baseRequest({ ...options, ...data }).response
             );
         });
     }
