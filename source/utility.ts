@@ -6,47 +6,6 @@ import {
     formToJSON
 } from 'web-utility';
 
-if (typeof globalThis.AbortSignal === 'function') {
-    /**
-     * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/70}
-     */
-    AbortSignal.prototype.throwIfAborted ||= function (this: AbortSignal) {
-        const { aborted, reason = 'Aborted' } = this;
-
-        if (!aborted) return;
-
-        throw reason instanceof DOMException
-            ? reason
-            : new DOMException(
-                  reason instanceof Error ? reason.message : reason + '',
-                  'AbortError'
-              );
-    };
-
-    /**
-     * @see {@link https://github.com/mo/abortcontroller-polyfill/issues/73#issuecomment-2085543258}
-     */
-    AbortSignal.any ||= (iterable: Iterable<AbortSignal>) => {
-        const controller = new AbortController();
-
-        function abort(this: AbortSignal) {
-            controller.abort(this.reason);
-            clean();
-        }
-        function clean() {
-            for (const signal of iterable)
-                signal.removeEventListener('abort', abort);
-        }
-        for (const signal of iterable)
-            if (signal.aborted) {
-                controller.abort(signal.reason);
-                break;
-            } else signal.addEventListener('abort', abort);
-
-        return controller.signal;
-    };
-}
-
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
 
@@ -186,11 +145,9 @@ export const streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
     createAsyncIterator<ProgressData, ProgressEvent<T>>(
         ({ next, complete, error }) => {
             const handleProgress = ({ loaded, total }: ProgressEvent) => {
-                if (loaded < total) next({ loaded, total });
-                else {
-                    if (loaded === total) next({ loaded, total });
-                    complete();
-                }
+                next({ loaded, total });
+
+                if (loaded >= total) complete();
             };
             target.addEventListener('progress', handleProgress);
             target.addEventListener('error', error);
@@ -201,6 +158,26 @@ export const streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
             };
         }
     );
+export async function* emitStreamProgress(
+    stream: import('web-streams-polyfill').ReadableStream<Uint8Array>,
+    totalBytes: number,
+    eventTarget: ProgressEventTarget
+): AsyncGenerator<Uint8Array> {
+    var loaded = 0;
+
+    for await (const chunk of stream) {
+        yield chunk;
+
+        loaded += (chunk as Uint8Array).byteLength;
+
+        const event = new ProgressEvent('progress', {
+            loaded,
+            total: totalBytes
+        });
+        eventTarget.dispatchEvent(event);
+    }
+}
+
 export enum FileMethod {
     text = 'readAsText',
     dataURL = 'readAsDataURL',

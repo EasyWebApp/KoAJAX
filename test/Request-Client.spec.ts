@@ -1,7 +1,13 @@
+import { AbortController } from 'abortcontroller-polyfill/dist/cjs-ponyfill';
 import { Blob } from 'buffer';
+import { ReadableStream } from 'web-streams-polyfill';
 
 import { HTTPClient, ProgressData, request, requestFetch } from '../source';
 import { XMLHttpRequest } from './XMLHttpRequest';
+
+global.AbortController = AbortController;
+// @ts-ignore
+global.ReadableStream = ReadableStream;
 // @ts-ignore
 // https://github.com/jsdom/jsdom/issues/2555#issuecomment-1864762292
 global.Blob = Blob;
@@ -105,7 +111,7 @@ describe('HTTP Client', () => {
         try {
             await client.get('/200', {}, { signal: controller.signal });
         } catch (error) {
-            expect(error).toBeInstanceOf(DOMException);
+            expect(error.message).toBe('This operation was aborted');
         }
     });
 });
