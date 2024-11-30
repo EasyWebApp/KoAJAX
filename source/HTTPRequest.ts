@@ -197,7 +197,22 @@ export function requestFetch<B>({
                 : responseType === 'arraybuffer' || responseType === 'blob'
                   ? { ...headers, Accept: 'application/octet-stream' }
                   : headers;
+    const isStream = body instanceof globalThis.ReadableStream;
+    var upload: AsyncGenerator<ProgressData> | undefined;
 
+    if (isStream) {
+        const uploadProgress = new EventTarget();
+
+        body = globalThis.ReadableStream['from'](
+            emitStreamProgress(
+                body as ReadableStream<Uint8Array>,
+                +headers['Content-Length'],
+                uploadProgress
+            )
+        ) as ReadableStream<Uint8Array>;
+
+        upload = streamFromProgress(uploadProgress);
+    }
     const downloadProgress = new EventTarget();
 
     const response = fetch(path + '', {
@@ -205,15 +220,13 @@ export function requestFetch<B>({
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal: signals[0] && AbortSignal.any(signals)
+        signal: signals[0] && AbortSignal.any(signals),
+        // @ts-expect-error https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests
+        duplex: isStream ? 'half' : undefined
     }).then(response =>
         parseResponse<B>(response, responseType, downloadProgress)
     );
-
-    return {
-        response,
-        download: streamFromProgress(downloadProgress)
-    };
+    return { response, upload, download: streamFromProgress(downloadProgress) };
 }
 
 export async function parseResponse<B>(
