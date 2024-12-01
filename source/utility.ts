@@ -6,6 +6,27 @@ import {
     formToJSON
 } from 'web-utility';
 
+globalThis.ProgressEvent ||= class ProgressEvent<
+    T extends EventTarget = EventTarget
+> extends Event {
+    declare target: T | null;
+
+    lengthComputable: boolean;
+    total: number;
+    loaded: number;
+
+    constructor(
+        type: string,
+        { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
+    ) {
+        super(type, meta);
+
+        this.lengthComputable = lengthComputable;
+        this.total = total;
+        this.loaded = loaded;
+    }
+};
+
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
 
@@ -32,7 +53,10 @@ export function makeFormData(data: Record<string, any>) {
     return formData;
 }
 
-export function serializeNode(root: Node) {
+export function serializeNode(root: Node): {
+    contentType: string;
+    data: string | URLSearchParams | FormData;
+} {
     var contentType: string;
 
     if (!(root instanceof HTMLFormElement))
@@ -40,8 +64,7 @@ export function serializeNode(root: Node) {
             contentType:
                 root instanceof SVGElement
                     ? 'image/svg'
-                    : root instanceof HTMLDocument ||
-                        root instanceof HTMLElement
+                    : root instanceof Document || root instanceof HTMLElement
                       ? 'text/html'
                       : 'application/xml',
             data: stringifyDOM(root)
@@ -63,10 +86,7 @@ export function serializeNode(root: Node) {
                     .join('\n')
             };
         case 'application/x-www-form-urlencoded':
-            return {
-                contentType,
-                data: new URLSearchParams(data) + ''
-            };
+            return { contentType, data: new URLSearchParams(data) };
         default:
             return {
                 contentType: 'application/json',
@@ -75,7 +95,13 @@ export function serializeNode(root: Node) {
     }
 }
 
-export function serialize<T>(data: T, contentType?: string) {
+export function serialize<T>(
+    data: T,
+    contentType?: string
+): {
+    data: T | BodyInit;
+    contentType?: string;
+} {
     const [type] = contentType?.split(';') || [];
 
     switch (type) {
@@ -160,7 +186,7 @@ export const streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
     );
 export async function* emitStreamProgress(
     stream: import('web-streams-polyfill').ReadableStream<Uint8Array>,
-    totalBytes: number,
+    total: number,
     eventTarget: ProgressEventTarget
 ): AsyncGenerator<Uint8Array> {
     var loaded = 0;
@@ -171,8 +197,9 @@ export async function* emitStreamProgress(
         loaded += (chunk as Uint8Array).byteLength;
 
         const event = new ProgressEvent('progress', {
+            lengthComputable: isNaN(total),
             loaded,
-            total: totalBytes
+            total
         });
         eventTarget.dispatchEvent(event);
     }

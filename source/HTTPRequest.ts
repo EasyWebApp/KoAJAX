@@ -1,6 +1,3 @@
-import 'core-js/es/object/from-entries';
-import 'core-js/es/promise/with-resolvers';
-import 'core-js/es/string/match-all';
 import type { ReadableStream } from 'web-streams-polyfill';
 import { parseJSON } from 'web-utility';
 
@@ -25,11 +22,11 @@ export interface RequestOptions {
     responseType?: XMLHttpRequestResponseType;
 }
 
-export interface Request extends RequestOptions {
+export interface Request<T = any> extends RequestOptions {
     method?: 'HEAD' | 'GET' | keyof typeof BodyRequestMethods;
     path: string | URL;
     headers?: HeadersInit;
-    body?: BodyInit | HTMLFormElement | any;
+    body?: BodyInit | HTMLFormElement | T;
     signal?: AbortSignal;
 }
 
@@ -52,11 +49,7 @@ export class HTTPError<B = Request['body']> extends URIError {
 
 export type LinkHeader = Record<
     string,
-    {
-        URI: string;
-        rel: string;
-        title?: string;
-    }
+    { URI: string; rel: string; title?: string }
 >;
 
 export const headerParser = {
@@ -108,13 +101,19 @@ export function requestXHR<B>({
     signal,
     ...rest
 }: Request): RequestResult<B> {
-    const request = new XMLHttpRequest(),
-        header_list =
-            headers instanceof Array
-                ? headers
-                : headers?.[Symbol.iterator] instanceof Function
-                  ? [...(headers as Iterable<string[]>)]
-                  : Object.entries(headers);
+    const request = new XMLHttpRequest();
+    const header_list =
+        headers instanceof Array
+            ? headers
+            : headers?.[Symbol.iterator] instanceof Function
+              ? [...(headers as Iterable<string[]>)]
+              : Object.entries(headers);
+    const bodyPromise =
+        body instanceof globalThis.ReadableStream
+            ? Array.fromAsync(body as ReadableStream).then(
+                  parts => new Blob(parts)
+              )
+            : Promise.resolve(body);
     const abort = () => request.abort();
 
     signal?.addEventListener('abort', abort);
@@ -144,7 +143,7 @@ export function requestXHR<B>({
 
         Object.assign(request, rest);
 
-        request.send(body);
+        bodyPromise.then(body => request.send(body));
     }).then(({ body, ...meta }) => {
         signal?.throwIfAborted();
 
@@ -260,11 +259,7 @@ export async function parseFetchBody<B>(
     contentType: string,
     responseType: Request['responseType']
 ) {
-    const chunks: Uint8Array[] = [];
-
-    for await (const chunk of stream) chunks.push(chunk);
-
-    const blob = new Blob(chunks, { type: contentType });
+    const blob = new Blob(await Array.fromAsync(stream), { type: contentType });
 
     if (responseType === 'blob') return blob as B;
 

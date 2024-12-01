@@ -11,9 +11,6 @@ importers:
       '@swc/helpers':
         specifier: ^0.5.15
         version: 0.5.15
-      core-js:
-        specifier: ^3.39.0
-        version: 3.39.0
       regenerator-runtime:
         specifier: ^0.14.1
         version: 0.14.1
@@ -30,9 +27,6 @@ importers:
       '@parcel/transformer-typescript-types':
         specifier: ~2.13.2
         version: 2.13.2(@parcel/core@2.13.2(@swc/helpers@0.5.15))(typescript@5.7.2)
-      '@types/core-js':
-        specifier: ^2.5.8
-        version: 2.5.8
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
@@ -45,6 +39,9 @@ importers:
       abortcontroller-polyfill:
         specifier: ^1.7.6
         version: 1.7.6
+      core-js:
+        specifier: ^3.39.0
+        version: 3.39.0
       cross-env:
         specifier: ^7.0.3
         version: 7.0.3
@@ -880,9 +877,6 @@ packages:
 
   '@types/babel__traverse@7.20.6':
     resolution: {integrity: sha512-r1bzfrm0tomOI8g1SzvCaQHo6Lcv6zu0EA+W2kHrt8dyrHQxGzBBL4kdkzIS+jBMV+EYcMAEAqXqYaLJq5rOZg==}
-
-  '@types/core-js@2.5.8':
-    resolution: {integrity: sha512-VgnAj6tIAhJhZdJ8/IpxdatM8G4OD3VWGlp6xIxUGENZlpbob9Ty4VVdC1FIEp0aK6DBscDDjyzy5FB60TuNqg==}
 
   '@types/graceful-fs@4.1.9':
     resolution: {integrity: sha512-olP3sd1qOEe5dXTSaFvQG+02VdRXcdytWLAZsAq1PecU8uqQAhkrnbli7DagjtXKW/Bl7YJbUsa8MPcuc8LHEQ==}
@@ -3882,8 +3876,6 @@ snapshots:
   '@types/babel__traverse@7.20.6':
     dependencies:
       '@babel/types': 7.26.0
-
-  '@types/core-js@2.5.8': {}
 
   '@types/graceful-fs@4.1.9':
     dependencies:
