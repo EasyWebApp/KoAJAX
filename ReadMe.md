@@ -35,7 +35,7 @@ Automatic Parsed type:
 
 #### Installation
 
-```shell
+```powershell
 npm install koajax
 ```
 
@@ -55,15 +55,16 @@ npm install koajax
 
 #### Installation
 
-```shell
-npm install koajax jsdom
+```powershell
+npm install koajax core-js jsdom
 ```
 
 #### `index.ts`
 
 ```javascript
+import { polyfill } from 'koajax/source/polyfill';
+
 import { HTTPClient } from 'koajax';
-import { polyfill } from 'koajax/source/polyfill'
 
 const origin = 'https://your-target-origin.com';
 
@@ -80,7 +81,7 @@ polyfill(origin).then(() => {
 
 #### Execution
 
-```shell
+```powershell
 npx tsx index.ts
 ```
 
@@ -141,9 +142,44 @@ document.querySelector('input[type="file"]').onchange = async ({
 };
 ```
 
+#### Single HTTP request based on Fetch `duplex` streams
+
+> This experimental feature has [some limitations][7].
+
+```diff
+-import { request } from 'koajax';
++import { requestFetch } from 'koajax';
+
+document.querySelector('input[type="file"]').onchange = async ({
+    target: { files }
+}) => {
+    for (const file of files) {
+-        const { upload, download, response } = request({
++        const { upload, download, response } = requestFetch({
+            method: 'POST',
+            path: '/files',
++            headers: {
++                'Content-Type': file.type,
++                'Content-Length': file.size + ''
++            },
+-            body: file,
++            body: file.stream(),
+            responseType: 'json'
+        });
+
+        for await (const { loaded } of upload)
+            console.log(`Upload ${file.name} : ${(loaded / file.size) * 100}%`);
+
+        const { body } = await response;
+
+        console.log(`Upload ${file.name} : ${body.url}`);
+    }
+};
+```
+
 #### Multiple HTTP requests based on `Range` header
 
-```shell
+```powershell
 npm i native-file-system-adapter  # Web standard API polyfill
 ```
 
@@ -176,7 +212,7 @@ document.querySelector('#download').onclick = async () => {
 
 ### Global Error fallback
 
-```shell
+```powershell
 npm install browser-unhandled-rejection  # Web standard API polyfill
 ```
 
@@ -226,3 +262,4 @@ document.querySelector('input[type="file"]').onchange = async ({
 [4]: https://www.jsdelivr.com/package/npm/koajax
 [5]: https://nodei.co/npm/koajax/
 [6]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of#Iterating_over_async_generators
+[7]: https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests#restrictions

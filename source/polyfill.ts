@@ -1,3 +1,8 @@
+import 'core-js/es/object/from-entries';
+import 'core-js/es/promise/with-resolvers';
+import 'core-js/es/string/match-all';
+import 'core-js/full/array/from-async';
+
 export async function polyfill(origin = 'http://127.0.0.1') {
     if (globalThis.XMLHttpRequest) return;
 
@@ -16,8 +21,12 @@ export async function polyfill(origin = 'http://127.0.0.1') {
         'XMLSerializer',
         'FormData',
         'TextEncoder',
-        'XMLHttpRequest',
+        'EventTarget',
         'AbortSignal',
+        'ReadableStream',
+        'ArrayBuffer',
+        'Blob',
+        'XMLHttpRequest',
         'FileReader'
     ])
         globalThis[key] ||= window[key];

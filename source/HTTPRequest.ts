@@ -1,10 +1,13 @@
-import 'core-js/es/object/from-entries';
-import 'core-js/es/promise/with-resolvers';
-import 'core-js/es/string/match-all';
 import type { ReadableStream } from 'web-streams-polyfill';
 import { parseJSON } from 'web-utility';
 
-import { parseDocument, ProgressData, streamFromProgress } from './utility';
+import {
+    emitStreamProgress,
+    parseDocument,
+    ProgressData,
+    ProgressEventTarget,
+    streamFromProgress
+} from './utility';
 
 export enum BodyRequestMethods {
     POST = 'POST',
@@ -19,11 +22,11 @@ export interface RequestOptions {
     responseType?: XMLHttpRequestResponseType;
 }
 
-export interface Request extends RequestOptions {
+export interface Request<T = any> extends RequestOptions {
     method?: 'HEAD' | 'GET' | keyof typeof BodyRequestMethods;
     path: string | URL;
     headers?: HeadersInit;
-    body?: BodyInit | HTMLFormElement | any;
+    body?: BodyInit | HTMLFormElement | T;
     signal?: AbortSignal;
 }
 
@@ -46,11 +49,7 @@ export class HTTPError<B = Request['body']> extends URIError {
 
 export type LinkHeader = Record<
     string,
-    {
-        URI: string;
-        rel: string;
-        title?: string;
-    }
+    { URI: string; rel: string; title?: string }
 >;
 
 export const headerParser = {
@@ -102,13 +101,19 @@ export function requestXHR<B>({
     signal,
     ...rest
 }: Request): RequestResult<B> {
-    const request = new XMLHttpRequest(),
-        header_list =
-            headers instanceof Array
-                ? headers
-                : headers?.[Symbol.iterator] instanceof Function
-                  ? [...(headers as Iterable<string[]>)]
-                  : Object.entries(headers);
+    const request = new XMLHttpRequest();
+    const header_list =
+        headers instanceof Array
+            ? headers
+            : headers?.[Symbol.iterator] instanceof Function
+              ? [...(headers as Iterable<string[]>)]
+              : Object.entries(headers);
+    const bodyPromise =
+        body instanceof globalThis.ReadableStream
+            ? Array.fromAsync(body as ReadableStream).then(
+                  parts => new Blob(parts)
+              )
+            : Promise.resolve(body);
     const abort = () => request.abort();
 
     signal?.addEventListener('abort', abort);
@@ -138,7 +143,7 @@ export function requestXHR<B>({
 
         Object.assign(request, rest);
 
-        request.send(body);
+        bodyPromise.then(body => request.send(body));
     }).then(({ body, ...meta }) => {
         signal?.throwIfAborted();
 
@@ -191,28 +196,50 @@ export function requestFetch<B>({
                 : responseType === 'arraybuffer' || responseType === 'blob'
                   ? { ...headers, Accept: 'application/octet-stream' }
                   : headers;
+    const isStream = body instanceof globalThis.ReadableStream;
+    var upload: AsyncGenerator<ProgressData> | undefined;
 
-    const responsePromise = fetch(path + '', {
+    if (isStream) {
+        const uploadProgress = new EventTarget();
+
+        body = globalThis.ReadableStream['from'](
+            emitStreamProgress(
+                body as ReadableStream<Uint8Array>,
+                +headers['Content-Length'],
+                uploadProgress
+            )
+        ) as ReadableStream<Uint8Array>;
+
+        upload = streamFromProgress(uploadProgress);
+    }
+    const downloadProgress = new EventTarget();
+
+    const response = fetch(path + '', {
         method,
         headers,
         credentials: withCredentials ? 'include' : 'omit',
         body,
-        signal: signals[0] && AbortSignal.any(signals)
-    });
-
-    return {
-        response: parseResponse(responsePromise, responseType),
-        download: iterateFetchBody(responsePromise)
-    };
+        signal: signals[0] && AbortSignal.any(signals),
+        // @ts-expect-error https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests
+        duplex: isStream ? 'half' : undefined
+    }).then(response =>
+        parseResponse<B>(response, responseType, downloadProgress)
+    );
+    return { response, upload, download: streamFromProgress(downloadProgress) };
 }
 
 export async function parseResponse<B>(
-    responsePromise: Promise<globalThis.Response>,
-    responseType: Request['responseType']
+    { status, statusText, headers, body }: globalThis.Response,
+    responseType: Request['responseType'],
+    downloadProgress: ProgressEventTarget
 ): Promise<Response<B>> {
-    const { status, statusText, headers, body } = (
-        await responsePromise
-    ).clone();
+    const stream = globalThis.ReadableStream['from'](
+        emitStreamProgress(
+            body as ReadableStream<Uint8Array>,
+            +headers.get('Content-Length'),
+            downloadProgress
+        )
+    ) as ReadableStream<Uint8Array>;
 
     const contentType = headers.get('Content-Type') || '';
 
@@ -222,11 +249,8 @@ export async function parseResponse<B>(
     const rBody =
         status === 204
             ? undefined
-            : await parseFetchBody<B>(
-                  body as ReadableStream<Uint8Array>,
-                  contentType,
-                  responseType
-              );
+            : await parseFetchBody<B>(stream, contentType, responseType);
+
     return { status, statusText, headers: header, body: rBody };
 }
 
@@ -235,11 +259,7 @@ export async function parseFetchBody<B>(
     contentType: string,
     responseType: Request['responseType']
 ) {
-    const chunks: Uint8Array[] = [];
-
-    for await (const chunk of stream) chunks.push(chunk);
-
-    const blob = new Blob(chunks, { type: contentType });
+    const blob = new Blob(await Array.fromAsync(stream), { type: contentType });
 
     if (responseType === 'blob') return blob as B;
 
@@ -250,21 +270,6 @@ export async function parseFetchBody<B>(
     if (responseType === 'text') return text as B;
 
     return parseBody<B>(text, contentType);
-}
-
-export async function* iterateFetchBody(
-    responsePromise: Promise<globalThis.Response>
-) {
-    const { headers, body } = (await responsePromise).clone();
-
-    const total = +headers.get('Content-Length');
-    var loaded = 0;
-
-    for await (const { byteLength } of body as ReadableStream<Uint8Array>) {
-        loaded += byteLength;
-
-        yield { total, loaded };
-    }
 }
 
 export const request =

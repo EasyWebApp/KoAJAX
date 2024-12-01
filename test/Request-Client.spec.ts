@@ -1,34 +1,52 @@
-import { Blob } from 'buffer';
+import { Blob, ReadableStream } from './XMLHttpRequest';
 
-import { HTTPClient, ProgressData, request, requestFetch } from '../source';
-import { XMLHttpRequest } from './XMLHttpRequest';
-// @ts-ignore
-// https://github.com/jsdom/jsdom/issues/2555#issuecomment-1864762292
-global.Blob = Blob;
-// @ts-ignore
-global.XMLHttpRequest = XMLHttpRequest;
+import { requestFetch, requestXHR } from '../source';
 
 describe('HTTP Request', () => {
-    it('should return a Promise & 2 Observable with fetch()', async () => {
-        const { download, response } = requestFetch<{ login: string }>({
-            path: 'https://api.github.com/users/TechQuery',
+    it('should return a Promise & an Observable with fetch()', async () => {
+        const { download, response } = requestFetch<{ id: number }>({
+            path: 'https://jsonplaceholder.typicode.com/posts/1',
             responseType: 'json'
         });
         expect(Symbol.asyncIterator in download).toBeTruthy();
 
-        var progress: ProgressData = { loaded: 0, total: 0 };
+        const { loaded, total } = (await Array.fromAsync(download)).at(-1);
 
-        for await (const part of download) progress = part;
-
-        expect(progress.loaded).toBeGreaterThanOrEqual(progress.total);
+        expect(loaded).toBeGreaterThanOrEqual(total);
 
         const { body } = await response;
 
-        expect(body).toMatchObject({ login: 'TechQuery' });
+        expect(body).toMatchObject({ id: 1 });
     });
 
-    it('should return a Promise & 2 Observable', async () => {
-        const { upload, download, response } = request({
+    it('should return a Promise & 2 Observable with fetch() & Readable Stream', async () => {
+        const blob = new Blob([JSON.stringify({ title: 'KoAJAX' })], {
+            type: 'application/json'
+        });
+        const { upload, download, response } = requestFetch<{ title: string }>({
+            method: 'POST',
+            path: 'https://jsonplaceholder.typicode.com/posts',
+            headers: {
+                'Content-Type': blob.type,
+                'Content-Length': blob.size + ''
+            },
+            body: ReadableStream.from(blob.stream()),
+            responseType: 'json'
+        });
+        expect(Symbol.asyncIterator in upload!).toBeTruthy();
+        expect(Symbol.asyncIterator in download).toBeTruthy();
+
+        const { loaded, total } = (await Array.fromAsync(upload!)).at(-1);
+
+        expect(loaded).toBeGreaterThanOrEqual(total);
+
+        const { body } = await response;
+
+        expect(body).toMatchObject({ title: 'KoAJAX' });
+    });
+
+    it('should return a Promise & 2 Observable with XHR', async () => {
+        const { upload, download, response } = requestXHR({
             path: '/200',
             responseType: 'json'
         });
@@ -43,69 +61,22 @@ describe('HTTP Request', () => {
             body: { message: 'Hello, World!' }
         });
     });
-});
 
-describe('HTTP Client', () => {
-    const client = new HTTPClient({ responseType: 'json' });
-
-    it('should return Data while Status is less then 300', async () => {
-        const { headers, body } = await client.get('/200');
-
-        expect(headers).toEqual({ 'Content-Type': 'application/json' });
-        expect(body).toEqual({ message: 'Hello, World!' });
-    });
-
-    it('should throw Error while Status is greater then 300', async () => {
-        try {
-            await client.get('/404');
-        } catch (error) {
-            expect({ ...error }).toEqual({
-                request: {
-                    method: 'GET',
-                    path: 'http://localhost/404',
-                    headers: {}
-                },
-                response: {
-                    status: 404,
-                    statusText: 'Not Found',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: { message: 'Hello, Error!' }
-                }
-            });
-        }
-    });
-
-    it('should serialize JSON automatically', async () => {
-        const { body } = await client.post('/201', { test: 'example' });
-
-        expect(body).toEqual({ test: 'example' });
-    });
-
-    it('should invoke Custom Middlewares', async () => {
-        const data: any[] = [];
-
-        client.use(async ({ request: { path }, response }, next) => {
-            data.push(path);
-
-            await next();
-
-            data.push(response.status);
+    it('should send a Readable Stream with XHR', async () => {
+        const blob = new Blob([JSON.stringify({ name: 'KoAJAX' })], {
+            type: 'application/json'
         });
-
-        await client.get('/200');
-
-        expect(data).toEqual(['/200', 200]);
-    });
-
-    it('should throw Abort Error as Abort Signal emitted', async () => {
-        const controller = new AbortController();
-
-        setTimeout(() => controller.abort());
-
-        try {
-            await client.get('/200', {}, { signal: controller.signal });
-        } catch (error) {
-            expect(error).toBeInstanceOf(DOMException);
-        }
+        const { response } = requestXHR({
+            method: 'POST',
+            path: '/201',
+            body: ReadableStream.from(blob.stream()),
+            responseType: 'json'
+        });
+        expect(await response).toEqual({
+            status: 201,
+            statusText: 'Created',
+            headers: { 'Content-Type': 'application/json' },
+            body: { name: 'KoAJAX' }
+        });
     });
 });

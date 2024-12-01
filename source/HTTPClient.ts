@@ -7,7 +7,7 @@ import {
     BodyRequestMethods,
     HTTPError
 } from './HTTPRequest';
-import { serialize } from './utility';
+import { ProgressData, serialize } from './utility';
 
 const { splice } = Array.prototype;
 
@@ -32,8 +32,7 @@ export interface DownloadOptions
     range?: [number?, number?];
 }
 
-export interface TransferProgress
-    extends Pick<ProgressEvent, 'total' | 'loaded'> {
+export interface TransferProgress extends ProgressData {
     percent: number;
     buffer: ArrayBuffer;
 }

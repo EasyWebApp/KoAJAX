@@ -1,7 +1,13 @@
-import { EventEmitter } from 'events';
+import { AbortController } from 'abortcontroller-polyfill/dist/cjs-ponyfill';
+import { Blob } from 'buffer';
+import { ReadableStream } from 'web-streams-polyfill';
+
+export { Blob, ReadableStream };
+
+import '../source/polyfill';
 import { Request } from '../source';
 
-export class XMLHttpRequest extends EventEmitter {
+export class XMLHttpRequest extends EventTarget {
     readyState = 0;
 
     onreadystatechange?: () => any;
@@ -23,7 +29,7 @@ export class XMLHttpRequest extends EventEmitter {
 
     setRequestHeader() {}
 
-    upload = new EventEmitter();
+    upload = new EventTarget();
 
     status: number;
     statusText: string;
@@ -35,35 +41,41 @@ export class XMLHttpRequest extends EventEmitter {
 
         setTimeout(() => this.#updateReadyState(3));
 
-        setTimeout(() => {
-            if (this.readyState > 3) return;
+        setTimeout(() => this.#mockResponse(body));
+    }
 
-            this.status = Number(this.responseURL.split('/').slice(-1)[0]);
+    async #mockResponse(body: Request['body']) {
+        if (this.readyState > 3) return;
 
-            switch (this.status) {
-                case 200: {
-                    this.statusText = 'OK';
-                    this.response = { message: 'Hello, World!' };
-                    break;
-                }
-                case 201: {
-                    this.statusText = 'Created';
-                    this.response =
-                        typeof body === 'string' ? JSON.parse(body) : '';
-                    break;
-                }
-                case 404: {
-                    this.statusText = 'Not Found';
-                    this.response = { message: 'Hello, Error!' };
-                }
+        this.status = Number(this.responseURL.split('/').slice(-1)[0]);
+
+        switch (this.status) {
+            case 200: {
+                this.statusText = 'OK';
+                this.response = { message: 'Hello, World!' };
+                break;
             }
+            case 201: {
+                this.statusText = 'Created';
+                this.response =
+                    typeof body === 'string'
+                        ? JSON.parse(body)
+                        : body instanceof Blob
+                          ? await body.text()
+                          : body;
+                break;
+            }
+            case 404: {
+                this.statusText = 'Not Found';
+                this.response = { message: 'Hello, Error!' };
+            }
+        }
 
-            if (this.responseType === 'json')
-                this.responseText = JSON.stringify(this.response);
-            else this.response = JSON.stringify(this.response);
+        if (this.responseType === 'json')
+            this.responseText = JSON.stringify(this.response);
+        else this.response = JSON.stringify(this.response);
 
-            this.#updateReadyState(4);
-        });
+        this.#updateReadyState(4);
     }
 
     abort() {
@@ -79,3 +91,12 @@ export class XMLHttpRequest extends EventEmitter {
         return 'content-type: application/json';
     }
 }
+
+global.AbortController = AbortController;
+// @ts-ignore
+global.ReadableStream = ReadableStream;
+// @ts-ignore
+// https://github.com/jsdom/jsdom/issues/2555#issuecomment-1864762292
+global.Blob = Blob;
+// @ts-ignore
+global.XMLHttpRequest = XMLHttpRequest;

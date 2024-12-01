@@ -15,6 +15,16 @@
         "excludeExternals": true,
         "excludePrivate": true,
         "readme": "./ReadMe.md",
-        "plugin": ["typedoc-plugin-mdn-links"]
+        "plugin": ["typedoc-plugin-mdn-links"],
+        "highlightLanguages": [
+            "powershell",
+            "diff",
+            "html",
+            "json",
+            "javascript",
+            "jsx",
+            "typescript",
+            "tsx"
+        ]
     }
 }

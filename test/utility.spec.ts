@@ -70,16 +70,18 @@ describe('HTTP utility', () => {
 
             const [form] = document.forms;
 
-            expect(serializeNode(form)).toEqual({
-                data: 'test=1%2C3&example=4',
-                contentType: 'application/x-www-form-urlencoded'
-            });
+            const result1 = serializeNode(form);
+
+            expect(result1.data + '').toBe('test=1%2C3&example=4');
+            expect(result1.contentType).toBe(
+                'application/x-www-form-urlencoded'
+            );
             form.enctype = 'text/plain';
 
-            expect(serializeNode(form)).toEqual({
-                data: 'test=1,3\nexample=4',
-                contentType: 'text/plain'
-            });
+            const result2 = serializeNode(form);
+
+            expect(result2.data + '').toBe('test=1,3\nexample=4');
+            expect(result2.contentType).toBe('text/plain');
         });
     });
 
