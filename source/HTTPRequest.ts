@@ -102,12 +102,7 @@ export function requestXHR<B>({
     ...rest
 }: Request): RequestResult<B> {
     const request = new XMLHttpRequest();
-    const header_list =
-        headers instanceof Array
-            ? headers
-            : headers?.[Symbol.iterator] instanceof Function
-              ? [...(headers as Iterable<string[]>)]
-              : Object.entries(headers);
+    const header = new Headers(headers);
     const bodyPromise =
         body instanceof globalThis.ReadableStream
             ? Array.fromAsync(body as ReadableStream).then(
@@ -136,10 +131,18 @@ export function requestXHR<B>({
         };
         request.onerror = request.ontimeout = reject;
 
+        const [MIMEType] = header.get('Accept')?.split(',') || [
+            rest.responseType === 'document'
+                ? 'application/xhtml+xml'
+                : rest.responseType === 'json'
+                  ? 'application/json'
+                  : ''
+        ];
+        if (MIMEType) request.overrideMimeType(MIMEType);
+
         request.open(method, path + '');
 
-        for (const [key, value] of header_list)
-            request.setRequestHeader(key, value);
+        for (const [key, value] of header) request.setRequestHeader(key, value);
 
         Object.assign(request, rest);
 

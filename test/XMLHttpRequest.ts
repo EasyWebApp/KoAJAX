@@ -21,6 +21,8 @@ export class XMLHttpRequest extends EventTarget {
         this.onreadystatechange?.();
     }
 
+    overrideMimeType(type: string) {}
+
     open(method: Request['method'], URI: string) {
         this.responseURL = URI;
 
