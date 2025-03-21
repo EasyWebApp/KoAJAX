@@ -6,26 +6,28 @@ import {
     formToJSON
 } from 'web-utility';
 
-globalThis.ProgressEvent ||= class ProgressEvent<
-    T extends EventTarget = EventTarget
-> extends Event {
-    declare target: T | null;
+export function polyfillProgressEvent() {
+    return (globalThis.ProgressEvent ||= class ProgressEvent<
+        T extends EventTarget = EventTarget
+    > extends Event {
+        declare target: T | null;
 
-    lengthComputable: boolean;
-    total: number;
-    loaded: number;
+        lengthComputable: boolean;
+        total: number;
+        loaded: number;
 
-    constructor(
-        type: string,
-        { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
-    ) {
-        super(type, meta);
+        constructor(
+            type: string,
+            { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
+        ) {
+            super(type, meta);
 
-        this.lengthComputable = lengthComputable;
-        this.total = total;
-        this.loaded = loaded;
-    }
-};
+            this.lengthComputable = lengthComputable;
+            this.total = total;
+            this.loaded = loaded;
+        }
+    });
+}
 
 export async function parseDocument(text: string, contentType = '') {
     const [type] = contentType?.split(';') || [];
@@ -190,6 +192,8 @@ export async function* emitStreamProgress(
     eventTarget: ProgressEventTarget
 ): AsyncGenerator<Uint8Array> {
     var loaded = 0;
+
+    polyfillProgressEvent();
 
     for await (const chunk of stream) {
         yield chunk;

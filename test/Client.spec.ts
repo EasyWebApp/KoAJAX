@@ -62,7 +62,7 @@ describe('HTTP Client', () => {
         try {
             await client.get('/200', {}, { signal: controller.signal });
         } catch (error) {
-            expect(error.message).toBe('This operation was aborted');
+            expect(error.message).toBe('signal is aborted without reason');
         }
     });
 });
