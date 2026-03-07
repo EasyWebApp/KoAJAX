@@ -54,6 +54,56 @@ describe('HTTP Client', () => {
         expect(data).toEqual(['/200', 200]);
     });
 
+    describe('HEAD simulation fallback', () => {
+        it('should fall back to Range GET when HEAD is not supported', async () => {
+            const headers = await client.head('/head-fallback');
+
+            expect(headers).toEqual({ 'Content-Type': 'application/json' });
+        });
+
+        it('should fall back to plain GET (fetch) when Range GET is also unsupported', async () => {
+            // Use a custom baseRequest so Range header reaches the mock
+            // (JSDOM's Headers class silently drops the Range header, so the
+            // global XHR mock cannot observe it)
+            const fallbackClient = new HTTPClient({
+                baseURI: 'http://localhost/',
+                baseRequest: ({ method, headers }) => {
+                    let status = 200;
+                    if (method === 'HEAD') status = 405;
+                    else if ('Range' in Object(headers)) status = 416;
+
+                    return {
+                        response: Promise.resolve({
+                            status,
+                            statusText: 'Test',
+                            headers: {},
+                            body: null
+                        }),
+                        download: (async function* () {})()
+                    };
+                }
+            });
+
+            const mockHeaders = new Headers({
+                'Content-Type': 'application/octet-stream'
+            });
+            const originalFetch = globalThis.fetch;
+
+            globalThis.fetch = async () =>
+                ({ headers: mockHeaders, body: null }) as unknown as Response;
+
+            try {
+                const headers = await fallbackClient.head('/no-range-support');
+
+                expect(headers).toEqual({
+                    'Content-Type': 'application/octet-stream'
+                });
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
+        });
+    });
+
     it('should throw Abort Error as Abort Signal emitted', async () => {
         const controller = new AbortController();
 

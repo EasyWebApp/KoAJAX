@@ -16,6 +16,9 @@ export class XMLHttpRequest extends EventTarget {
     responseURL: string;
     responseType: XMLHttpRequestResponseType;
 
+    #method: string;
+    #requestHeaders: Record<string, string> = {};
+
     #updateReadyState(state: number) {
         this.readyState = state;
         this.onreadystatechange?.();
@@ -24,12 +27,16 @@ export class XMLHttpRequest extends EventTarget {
     overrideMimeType(type: string) {}
 
     open(method: Request['method'], URI: string) {
+        this.#method = method;
         this.responseURL = URI;
+        this.#requestHeaders = {};
 
         this.#updateReadyState(1);
     }
 
-    setRequestHeader() {}
+    setRequestHeader(key: string, value: string) {
+        this.#requestHeaders[key.toLowerCase()] = value;
+    }
 
     upload = new EventTarget();
 
@@ -49,7 +56,58 @@ export class XMLHttpRequest extends EventTarget {
     async #mockResponse(body: Request['body']) {
         if (this.readyState > 3) return;
 
-        this.status = Number(this.responseURL.split('/').slice(-1)[0]);
+        const path = this.responseURL.split('/').slice(-1)[0];
+        const isHead = this.#method === 'HEAD';
+        const isRangeGet =
+            this.#method === 'GET' && 'range' in this.#requestHeaders;
+
+        // HEAD-fallback test URL: HEAD → 405, Range GET → 206, plain GET → 200
+        if (path === 'head-fallback') {
+            if (isHead) {
+                this.status = 405;
+                this.statusText = 'Method Not Allowed';
+                this.response = null;
+            } else if (isRangeGet) {
+                this.status = 206;
+                this.statusText = 'Partial Content';
+                this.response = null;
+            } else {
+                this.status = 200;
+                this.statusText = 'OK';
+                this.response = null;
+            }
+
+            if (this.responseType === 'json')
+                this.responseText = JSON.stringify(this.response);
+            else this.response = JSON.stringify(this.response);
+
+            this.#updateReadyState(4);
+            return;
+        }
+
+        // Range-not-supported test URL: HEAD → 405, Range GET → 416, plain GET → 200
+        if (path === 'no-range-support') {
+            if (isHead || isRangeGet) {
+                this.status = isHead ? 405 : 416;
+                this.statusText = isHead
+                    ? 'Method Not Allowed'
+                    : 'Range Not Satisfiable';
+                this.response = null;
+            } else {
+                this.status = 200;
+                this.statusText = 'OK';
+                this.response = null;
+            }
+
+            if (this.responseType === 'json')
+                this.responseText = JSON.stringify(this.response);
+            else this.response = JSON.stringify(this.response);
+
+            this.#updateReadyState(4);
+            return;
+        }
+
+        this.status = Number(path);
 
         switch (this.status) {
             case 200: {
