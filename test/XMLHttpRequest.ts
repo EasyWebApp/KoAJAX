@@ -16,8 +16,6 @@ export class XMLHttpRequest extends EventTarget {
     responseURL: string;
     responseType: XMLHttpRequestResponseType;
 
-    #method: string;
-
     #updateReadyState(state: number) {
         this.readyState = state;
         this.onreadystatechange?.();
@@ -26,7 +24,6 @@ export class XMLHttpRequest extends EventTarget {
     overrideMimeType(type: string) {}
 
     open(method: Request['method'], URI: string) {
-        this.#method = method;
         this.responseURL = URI;
 
         this.#updateReadyState(1);
@@ -52,9 +49,7 @@ export class XMLHttpRequest extends EventTarget {
     async #mockResponse(body: Request['body']) {
         if (this.readyState > 3) return;
 
-        const path = this.responseURL.split('/').at(-1);
-
-        this.status = Number(path);
+        this.status = Number(this.responseURL.split('/').at(-1));
 
         switch (this.status) {
             case 200: {
@@ -77,10 +72,7 @@ export class XMLHttpRequest extends EventTarget {
                 this.response = { message: 'Hello, Error!' };
             }
         }
-        this.#endResponse();
-    }
 
-    #endResponse() {
         if (this.responseType === 'json')
             this.responseText = JSON.stringify(this.response);
         else this.response = JSON.stringify(this.response);

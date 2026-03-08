@@ -260,6 +260,6 @@ document.querySelector('input[type="file"]').onchange = async ({
 [2]: https://libraries.io/npm/koajax
 [3]: https://github.com/EasyWebApp/KoAJAX/actions/workflows/main.yml
 [4]: https://www.jsdelivr.com/package/npm/koajax
-[5]: https://nodei.co/npm/koajax/
+[5]: https://npm.im/koajax/
 [6]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of#Iterating_over_async_generators
 [7]: https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests#restrictions

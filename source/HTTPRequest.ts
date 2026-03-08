@@ -6,6 +6,7 @@ import {
     parseDocument,
     ProgressData,
     ProgressEventTarget,
+    readBytes,
     streamFromProgress
 } from './utility';
 
@@ -275,7 +276,7 @@ export async function parseFetchBody<B>(
     return parseBody<B>(text, contentType);
 }
 
-const rawRequest =
+export const rawRequest =
     typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;
 
 /**
@@ -289,19 +290,6 @@ export interface HeadResponse {
     headers: Response['headers'];
     /** First {@link FILE_TYPE_MAGIC_NUMBER_SIZE} bytes from the response body. */
     body?: ArrayBuffer;
-}
-
-async function* takeBytes(
-    stream: AsyncIterable<Uint8Array>,
-    limit: number
-): AsyncGenerator<ArrayBuffer> {
-    let total = 0;
-
-    for await (const chunk of stream) {
-        yield new Uint8Array(chunk).buffer;
-        total += chunk.byteLength;
-        if (total >= limit) break;
-    }
 }
 
 /**
@@ -331,11 +319,11 @@ export async function requestHead({
     const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
         Boolean
     ) as AbortSignal[];
+
     const fetchOptions: globalThis.RequestInit = {
         credentials: withCredentials ? 'include' : 'omit',
         signal: signals[1] ? AbortSignal.any(signals) : signals[0]
     };
-
     const toHeaders = (raw: globalThis.Headers) =>
         parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
 
@@ -363,49 +351,39 @@ export async function requestHead({
         if (!response.ok)
             throw new Error(`${response.status} ${response.statusText}`);
 
-        const body = await response.arrayBuffer();
-        return { headers: toHeaders(response.headers), body };
+        return {
+            headers: toHeaders(response.headers),
+            body: await response.arrayBuffer()
+        };
     } catch {
         // Server does not support Range requests; fall back to plain GET
     }
 
     // Tier 3: plain GET – read magic-number bytes then cancel the body stream
-    const rawResponse = await fetch(path + '', {
+    const response = await fetch(path, {
         ...fetchOptions,
         headers: normalizedHeaders
     });
-    const chunks = rawResponse.body
-        ? await Array.fromAsync(
-              takeBytes(
-                  rawResponse.body as unknown as AsyncIterable<Uint8Array>,
-                  FILE_TYPE_MAGIC_NUMBER_SIZE
-              )
-          )
-        : [];
-    const body = await new Blob(chunks).arrayBuffer();
-
-    return { headers: toHeaders(rawResponse.headers), body };
+    const body = await readBytes(
+        response.body as ReadableStream<Uint8Array>,
+        FILE_TYPE_MAGIC_NUMBER_SIZE
+    );
+    return { headers: toHeaders(response.headers), body };
 }
 
 /**
  * Sends a {@link Request}, with automatic HEAD-simulation fallback for
  * servers that do not support the `HEAD` method.
  */
-export function request<B>(req: Request): RequestResult<B> {
-    if (req.method === 'HEAD') {
-        const response = requestHead(req).then(
-            ({ headers, body }) =>
-                ({
-                    status: 200,
-                    statusText: 'OK',
-                    headers,
-                    body: body as unknown as B
-                }) satisfies Response<B>
-        );
-        return {
-            response,
-            download: (async function* (): AsyncGenerator<ProgressData> {})()
-        };
-    }
-    return rawRequest<B>(req);
+export function request<B>(option: Request): RequestResult<B> {
+    if (option.method !== 'HEAD') return rawRequest<B>(option);
+
+    const response = requestHead(option).then(
+        ({ headers, body }) =>
+            ({ status: 200, statusText: 'OK', headers, body }) as Response<B>
+    );
+    return {
+        response,
+        download: (async function* (): AsyncGenerator<ProgressData> {})()
+    };
 }
