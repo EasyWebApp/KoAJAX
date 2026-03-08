@@ -81,17 +81,8 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         }
         await next();
 
-        if (response.status > 299) {
-            if (method === 'HEAD') {
-                Object.assign(
-                    response,
-                    { status: 200, statusText: 'OK' },
-                    await requestHead(request)
-                );
-                return;
-            }
+        if (response.status > 299)
             throw new HTTPError(response.statusText, request, response);
-        }
     };
 
     use(...middlewares: Middleware<T>[]) {
@@ -116,12 +107,16 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         headers?: Request['headers'],
         options?: MethodOptions
     ) {
-        const { headers: data } = await this.request({
-            method: 'HEAD',
-            path,
-            headers,
-            ...options
-        });
+        const { headers: data } = await requestHead(
+            {
+                method: 'HEAD',
+                path: new URL(path, this.baseURI) + '',
+                headers,
+                ...this.options,
+                ...options
+            },
+            this.baseRequest
+        );
         return data;
     }
 

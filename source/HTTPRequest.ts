@@ -292,20 +292,51 @@ export interface HeadResponse {
     body?: ArrayBuffer;
 }
 
+async function readMagicNumberBytes(
+    body: globalThis.ReadableStream<Uint8Array> | null
+): Promise<ArrayBuffer | undefined> {
+    if (!body) return undefined;
+
+    const reader = body.getReader();
+    const buffers: ArrayBuffer[] = [];
+    let totalRead = 0;
+
+    try {
+        while (totalRead < FILE_TYPE_MAGIC_NUMBER_SIZE) {
+            const { done, value } = await reader.read();
+            if (done || !value) break;
+            buffers.push(new Uint8Array(value).buffer);
+            totalRead += value.byteLength;
+        }
+    } finally {
+        reader.cancel();
+    }
+    return new Blob(buffers).arrayBuffer();
+}
+
 /**
- * Simulates a `HEAD` request when the server does not support `HEAD`.
- * Tries, in order:
- * 1. A `Range` GET to retrieve the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
+ * Sends a `HEAD` request, falling back to simulation when the server does
+ * not support `HEAD`. Tries, in order:
+ * 1. A standard `HEAD` request via {@link baseRequest}.
+ * 2. A `Range` GET to retrieve the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
  *    bytes (magic-number file header).
- * 2. A plain `GET` whose response body is immediately cancelled.
+ * 3. A plain `GET` that reads the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
+ *    bytes then cancels the body stream.
  */
-export async function requestHead({
-    path,
-    headers,
-    withCredentials,
-    timeout,
-    signal
-}: Request): Promise<HeadResponse> {
+export async function requestHead(
+    req: Request,
+    baseRequest = request
+): Promise<HeadResponse> {
+    const { path, headers, withCredentials, timeout, signal } = req;
+
+    // Tier 1: standard HEAD request
+    try {
+        const result = await baseRequest({ ...req, method: 'HEAD' }).response;
+        if (result.status <= 299) return { headers: result.headers };
+    } catch {
+        // Network error or unsupported method; fall through to simulation tiers
+    }
+
     const normalizedHeaders: Record<string, string> = !headers
         ? {}
         : headers instanceof Headers
@@ -325,7 +356,7 @@ export async function requestHead({
     const toHeaders = (raw: globalThis.Headers) =>
         parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
 
-    // Fallback 1: Range GET – read magic-number bytes only
+    // Tier 2: Range GET – read magic-number bytes only
     try {
         const response = await fetch(path + '', {
             ...fetchOptions,
@@ -343,12 +374,12 @@ export async function requestHead({
         // Server does not support Range requests; fall back to plain GET
     }
 
-    // Fallback 2: plain GET – cancel body stream after headers arrive
+    // Tier 3: plain GET – read magic-number bytes then cancel the body stream
     const rawResponse = await fetch(path + '', {
         ...fetchOptions,
         headers: normalizedHeaders
     });
-    rawResponse.body?.cancel();
+    const body = await readMagicNumberBytes(rawResponse.body);
 
-    return { headers: toHeaders(rawResponse.headers) };
+    return { headers: toHeaders(rawResponse.headers), body };
 }

@@ -91,7 +91,15 @@ describe('HTTP Client', () => {
 
                 return {
                     headers: new Headers(mockHeaders),
-                    body: { cancel: async () => {} }
+                    body: {
+                        getReader: () => ({
+                            read: async () => ({
+                                done: true,
+                                value: undefined
+                            }),
+                            cancel: async () => {}
+                        })
+                    }
                 } as unknown as Response;
             };
 
