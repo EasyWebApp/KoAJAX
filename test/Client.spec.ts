@@ -83,23 +83,21 @@ describe('HTTP Client', () => {
                     };
                 }
             });
-
-            const mockHeaders = new Headers({
-                'Content-Type': 'application/octet-stream'
-            });
-            const originalFetch = globalThis.fetch;
+            const { fetch } = globalThis,
+                mockHeaders = { 'Content-Type': 'application/octet-stream' };
 
             globalThis.fetch = async () =>
-                ({ headers: mockHeaders, body: null }) as unknown as Response;
+                ({
+                    headers: new Headers(mockHeaders),
+                    body: null
+                }) as unknown as Response;
 
             try {
                 const headers = await fallbackClient.head('/no-range-support');
 
-                expect(headers).toEqual({
-                    'Content-Type': 'application/octet-stream'
-                });
+                expect(headers).toEqual(mockHeaders);
             } finally {
-                globalThis.fetch = originalFetch;
+                globalThis.fetch = fetch;
             }
         });
     });

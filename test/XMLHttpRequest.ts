@@ -56,7 +56,7 @@ export class XMLHttpRequest extends EventTarget {
     async #mockResponse(body: Request['body']) {
         if (this.readyState > 3) return;
 
-        const path = this.responseURL.split('/').slice(-1)[0];
+        const path = this.responseURL.split('/').at(-1);
         const isHead = this.#method === 'HEAD';
         const isRangeGet =
             this.#method === 'GET' && 'range' in this.#requestHeaders;
@@ -76,13 +76,7 @@ export class XMLHttpRequest extends EventTarget {
                 this.statusText = 'OK';
                 this.response = null;
             }
-
-            if (this.responseType === 'json')
-                this.responseText = JSON.stringify(this.response);
-            else this.response = JSON.stringify(this.response);
-
-            this.#updateReadyState(4);
-            return;
+            return this.#endResponse();
         }
 
         // Range-not-supported test URL: HEAD → 405, Range GET → 416, plain GET → 200
@@ -98,13 +92,7 @@ export class XMLHttpRequest extends EventTarget {
                 this.statusText = 'OK';
                 this.response = null;
             }
-
-            if (this.responseType === 'json')
-                this.responseText = JSON.stringify(this.response);
-            else this.response = JSON.stringify(this.response);
-
-            this.#updateReadyState(4);
-            return;
+            return this.#endResponse();
         }
 
         this.status = Number(path);
@@ -130,7 +118,10 @@ export class XMLHttpRequest extends EventTarget {
                 this.response = { message: 'Hello, Error!' };
             }
         }
+        this.#endResponse();
+    }
 
+    #endResponse() {
         if (this.responseType === 'json')
             this.responseText = JSON.stringify(this.response);
         else this.response = JSON.stringify(this.response);

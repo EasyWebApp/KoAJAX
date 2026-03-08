@@ -10,13 +10,13 @@ import {
 } from './HTTPRequest';
 import { ProgressData, serialize } from './utility';
 
+const { splice } = Array.prototype;
+
 /**
  * Minimum byte count for magic number-based file type detection,
  * consistent with the file-type library {@link https://github.com/sindresorhus/file-type}.
  */
 const FILE_TYPE_MAGIC_NUMBER_SIZE = 4100;
-
-const { splice } = Array.prototype;
 
 export interface Context {
     request: Request;
@@ -65,7 +65,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         super.use(this.defaultWare);
 
         super.use(async ({ request: data, response }) => {
-            data.path = new URL(data.path + '', this.baseURI) + '';
+            data.path = new URL(data.path, this.baseURI) + '';
 
             Object.assign(
                 response,
@@ -115,52 +115,47 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     ) {
         // Try actual HEAD request
         try {
-            return (
-                await this.request({
-                    method: 'HEAD',
-                    path,
-                    headers,
-                    ...options
-                })
-            ).headers;
+            const { headers: data } = await this.request({
+                method: 'HEAD',
+                path,
+                headers,
+                ...options
+            });
+            return data;
         } catch {
             // Server does not support HEAD; try fallback strategies below
         }
-
         // Fallback 1: simulate HEAD with a Range GET (magic number byte count)
         try {
-            return (
-                await this.request({
-                    method: 'GET',
-                    path,
-                    headers: {
-                        ...headers,
-                        Range: `bytes=0-${FILE_TYPE_MAGIC_NUMBER_SIZE - 1}`
-                    },
-                    ...options
-                })
-            ).headers;
+            const { headers: data } = await this.get(
+                path,
+                {
+                    ...headers,
+                    Range: `bytes=0-${FILE_TYPE_MAGIC_NUMBER_SIZE - 1}`
+                },
+                options
+            );
+            return data;
         } catch {
             // Server does not support Range requests; fall back to plain GET
         }
-
         // Fallback 2: plain GET – cancel the body stream after headers arrive
-        const { withCredentials, timeout } = { ...this.options, ...options };
-        const url = new URL(path + '', this.baseURI) + '';
+        const URI = new URL(path, this.baseURI) + '',
+            { withCredentials, timeout } = { ...this.options, ...options };
         const signals = [
             options?.signal,
             timeout && AbortSignal.timeout(timeout)
         ].filter(Boolean) as AbortSignal[];
 
-        const rawResponse = await globalThis.fetch(url, {
-            headers: headers as HeadersInit,
+        const response = await fetch(URI, {
+            headers,
             credentials: withCredentials ? 'include' : 'omit',
-            signal: signals.length > 1 ? AbortSignal.any(signals) : signals[0]
+            signal: signals[1] ? AbortSignal.any(signals) : signals[0]
         });
-        rawResponse.body?.cancel();
+        response.body?.cancel();
 
         return parseHeaders(
-            [...rawResponse.headers].map(([k, v]) => `${k}: ${v}`).join('\n')
+            [...response.headers].map(([k, v]) => `${k}: ${v}`).join('\n')
         );
     }
 
@@ -241,43 +236,25 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             ...options
         }: DownloadOptions = {}
     ): AsyncGenerator<TransferProgress> {
-        var total = 0;
+        const { 'Content-Length': length } = await this.head(
+            path,
+            headers,
+            options
+        );
+        const total = +length;
 
-        function setEndAsHeader(length: number) {
-            total = length;
-
-            if (end === Infinity) end = total;
-        }
-
-        try {
-            const { 'Content-Length': length } = await this.head(
-                path,
-                headers,
-                options
-            );
-            setEndAsHeader(+length);
-        } catch (error) {
-            console.error(error);
-        }
+        if (end === Infinity) end = total;
 
         for (
             let i = start, j = i - 1 + chunkSize;
             i < end;
             i = j + 1, j += chunkSize
         ) {
-            const {
-                status,
-                headers: { 'Content-Range': range },
-                body
-            } = await this.get<ArrayBuffer>(
+            const { status, body } = await this.get<ArrayBuffer>(
                 path,
                 { ...headers, Range: `bytes=${i}-${j}` },
                 options
             );
-            const totalBytes = +(range as string)?.split('/').pop();
-
-            if (totalBytes) setEndAsHeader(totalBytes);
-
             if (status !== 206) {
                 yield { total, loaded: total, percent: 100, buffer: body };
                 break;
