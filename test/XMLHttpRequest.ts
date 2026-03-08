@@ -53,15 +53,6 @@ export class XMLHttpRequest extends EventTarget {
         if (this.readyState > 3) return;
 
         const path = this.responseURL.split('/').at(-1);
-        const isHead = this.#method === 'HEAD';
-
-        // HEAD-fallback paths: HEAD → 405; requestHead() handles the rest via fetch
-        if (path === 'head-fallback' || path === 'no-range-support') {
-            this.status = isHead ? 405 : 200;
-            this.statusText = isHead ? 'Method Not Allowed' : 'OK';
-            this.response = null;
-            return this.#endResponse();
-        }
 
         this.status = Number(path);
 

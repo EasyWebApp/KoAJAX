@@ -56,18 +56,30 @@ describe('HTTP Client', () => {
 
     describe('HEAD simulation fallback', () => {
         it('should fall back to Range GET when HEAD is not supported', async () => {
-            // HEAD fails via XHR mock (405); requestHead() uses fetch for Range GET
+            // Tier 1 (fetch HEAD) returns not-ok; Tier 2 (Range GET) succeeds
             const { fetch } = globalThis,
                 mockBody = new ArrayBuffer(4100),
                 mockHeaders = { 'Content-Type': 'application/json' };
+            let callCount = 0;
 
-            globalThis.fetch = async () =>
-                ({
+            globalThis.fetch = async () => {
+                callCount++;
+
+                if (callCount === 1)
+                    return {
+                        ok: false,
+                        status: 405,
+                        statusText: 'Method Not Allowed',
+                        headers: new Headers()
+                    } as unknown as Response;
+
+                return {
                     ok: true,
                     headers: new Headers(mockHeaders),
                     arrayBuffer: async () => mockBody,
                     body: null
-                }) as unknown as Response;
+                } as unknown as Response;
+            };
 
             try {
                 const headers = await client.head('/head-fallback');
@@ -79,7 +91,7 @@ describe('HTTP Client', () => {
         });
 
         it('should fall back to plain GET (fetch) when Range GET is also unsupported', async () => {
-            // HEAD fails via XHR mock (405); Range GET fetch throws; plain GET fetch succeeds
+            // Tier 1 (fetch HEAD) throws; Tier 2 (Range GET) throws; Tier 3 (plain GET) succeeds
             const { fetch } = globalThis,
                 mockHeaders = { 'Content-Type': 'application/octet-stream' };
             let callCount = 0;
@@ -87,19 +99,17 @@ describe('HTTP Client', () => {
             globalThis.fetch = async () => {
                 callCount++;
 
-                if (callCount === 1) throw new Error('Range Not Satisfiable');
+                if (callCount === 1) throw new Error('HEAD not supported');
+
+                if (callCount === 2) throw new Error('Range Not Satisfiable');
 
                 return {
                     headers: new Headers(mockHeaders),
-                    body: {
-                        getReader: () => ({
-                            read: async () => ({
-                                done: true,
-                                value: undefined
-                            }),
-                            cancel: async () => {}
-                        })
-                    }
+                    body: new (globalThis.ReadableStream as any)({
+                        start(ctrl: any) {
+                            ctrl.close();
+                        }
+                    })
                 } as unknown as Response;
             };
 

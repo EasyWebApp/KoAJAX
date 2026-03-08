@@ -275,7 +275,7 @@ export async function parseFetchBody<B>(
     return parseBody<B>(text, contentType);
 }
 
-export const request =
+const rawRequest =
     typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;
 
 /**
@@ -287,56 +287,39 @@ export const FILE_TYPE_MAGIC_NUMBER_SIZE = 4100;
 
 export interface HeadResponse {
     headers: Response['headers'];
-    /** First {@link FILE_TYPE_MAGIC_NUMBER_SIZE} bytes, available when the
-     *  server honours `Range` requests. */
+    /** First {@link FILE_TYPE_MAGIC_NUMBER_SIZE} bytes from the response body. */
     body?: ArrayBuffer;
 }
 
-async function readMagicNumberBytes(
-    body: globalThis.ReadableStream<Uint8Array> | null
-): Promise<ArrayBuffer | undefined> {
-    if (!body) return undefined;
+async function* takeBytes(
+    stream: AsyncIterable<Uint8Array>,
+    limit: number
+): AsyncGenerator<ArrayBuffer> {
+    let total = 0;
 
-    const reader = body.getReader();
-    const buffers: ArrayBuffer[] = [];
-    let totalRead = 0;
-
-    try {
-        while (totalRead < FILE_TYPE_MAGIC_NUMBER_SIZE) {
-            const { done, value } = await reader.read();
-            if (done || !value) break;
-            buffers.push(new Uint8Array(value).buffer);
-            totalRead += value.byteLength;
-        }
-    } finally {
-        reader.cancel();
+    for await (const chunk of stream) {
+        yield new Uint8Array(chunk).buffer;
+        total += chunk.byteLength;
+        if (total >= limit) break;
     }
-    return new Blob(buffers).arrayBuffer();
 }
 
 /**
  * Sends a `HEAD` request, falling back to simulation when the server does
  * not support `HEAD`. Tries, in order:
- * 1. A standard `HEAD` request via {@link baseRequest}.
+ * 1. A standard `HEAD` request via `fetch()`.
  * 2. A `Range` GET to retrieve the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
  *    bytes (magic-number file header).
  * 3. A plain `GET` that reads the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
  *    bytes then cancels the body stream.
  */
-export async function requestHead(
-    req: Request,
-    baseRequest = request
-): Promise<HeadResponse> {
-    const { path, headers, withCredentials, timeout, signal } = req;
-
-    // Tier 1: standard HEAD request
-    try {
-        const result = await baseRequest({ ...req, method: 'HEAD' }).response;
-        if (result.status <= 299) return { headers: result.headers };
-    } catch {
-        // Network error or unsupported method; fall through to simulation tiers
-    }
-
+export async function requestHead({
+    path,
+    headers,
+    withCredentials,
+    timeout,
+    signal
+}: Request): Promise<HeadResponse> {
     const normalizedHeaders: Record<string, string> = !headers
         ? {}
         : headers instanceof Headers
@@ -355,6 +338,18 @@ export async function requestHead(
 
     const toHeaders = (raw: globalThis.Headers) =>
         parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
+
+    // Tier 1: fetch() HEAD
+    try {
+        const response = await fetch(path + '', {
+            method: 'HEAD',
+            ...fetchOptions,
+            headers: normalizedHeaders
+        });
+        if (response.ok) return { headers: toHeaders(response.headers) };
+    } catch {
+        // HEAD not supported; fall through to simulation tiers
+    }
 
     // Tier 2: Range GET – read magic-number bytes only
     try {
@@ -379,7 +374,38 @@ export async function requestHead(
         ...fetchOptions,
         headers: normalizedHeaders
     });
-    const body = await readMagicNumberBytes(rawResponse.body);
+    const chunks = rawResponse.body
+        ? await Array.fromAsync(
+              takeBytes(
+                  rawResponse.body as unknown as AsyncIterable<Uint8Array>,
+                  FILE_TYPE_MAGIC_NUMBER_SIZE
+              )
+          )
+        : [];
+    const body = await new Blob(chunks).arrayBuffer();
 
     return { headers: toHeaders(rawResponse.headers), body };
+}
+
+/**
+ * Sends a {@link Request}, with automatic HEAD-simulation fallback for
+ * servers that do not support the `HEAD` method.
+ */
+export function request<B>(req: Request): RequestResult<B> {
+    if (req.method === 'HEAD') {
+        const response = requestHead(req).then(
+            ({ headers, body }) =>
+                ({
+                    status: 200,
+                    statusText: 'OK',
+                    headers,
+                    body: body as unknown as B
+                }) satisfies Response<B>
+        );
+        return {
+            response,
+            download: (async function* (): AsyncGenerator<ProgressData> {})()
+        };
+    }
+    return rawRequest<B>(req);
 }

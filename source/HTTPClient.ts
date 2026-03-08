@@ -5,8 +5,7 @@ import {
     RequestOptions,
     request,
     BodyRequestMethods,
-    HTTPError,
-    requestHead
+    HTTPError
 } from './HTTPRequest';
 import { ProgressData, serialize } from './utility';
 
@@ -107,16 +106,12 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         headers?: Request['headers'],
         options?: MethodOptions
     ) {
-        const { headers: data } = await requestHead(
-            {
-                method: 'HEAD',
-                path: new URL(path, this.baseURI) + '',
-                headers,
-                ...this.options,
-                ...options
-            },
-            this.baseRequest
-        );
+        const { headers: data } = await this.request({
+            method: 'HEAD',
+            path,
+            headers,
+            ...options
+        });
         return data;
     }
 
