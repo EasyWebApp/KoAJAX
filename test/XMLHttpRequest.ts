@@ -17,7 +17,6 @@ export class XMLHttpRequest extends EventTarget {
     responseType: XMLHttpRequestResponseType;
 
     #method: string;
-    #requestHeaders: Record<string, string> = {};
 
     #updateReadyState(state: number) {
         this.readyState = state;
@@ -29,14 +28,11 @@ export class XMLHttpRequest extends EventTarget {
     open(method: Request['method'], URI: string) {
         this.#method = method;
         this.responseURL = URI;
-        this.#requestHeaders = {};
 
         this.#updateReadyState(1);
     }
 
-    setRequestHeader(key: string, value: string) {
-        this.#requestHeaders[key.toLowerCase()] = value;
-    }
+    setRequestHeader() {}
 
     upload = new EventTarget();
 
@@ -58,40 +54,12 @@ export class XMLHttpRequest extends EventTarget {
 
         const path = this.responseURL.split('/').at(-1);
         const isHead = this.#method === 'HEAD';
-        const isRangeGet =
-            this.#method === 'GET' && 'range' in this.#requestHeaders;
 
-        // HEAD-fallback test URL: HEAD → 405, Range GET → 206, plain GET → 200
-        if (path === 'head-fallback') {
-            if (isHead) {
-                this.status = 405;
-                this.statusText = 'Method Not Allowed';
-                this.response = null;
-            } else if (isRangeGet) {
-                this.status = 206;
-                this.statusText = 'Partial Content';
-                this.response = null;
-            } else {
-                this.status = 200;
-                this.statusText = 'OK';
-                this.response = null;
-            }
-            return this.#endResponse();
-        }
-
-        // Range-not-supported test URL: HEAD → 405, Range GET → 416, plain GET → 200
-        if (path === 'no-range-support') {
-            if (isHead || isRangeGet) {
-                this.status = isHead ? 405 : 416;
-                this.statusText = isHead
-                    ? 'Method Not Allowed'
-                    : 'Range Not Satisfiable';
-                this.response = null;
-            } else {
-                this.status = 200;
-                this.statusText = 'OK';
-                this.response = null;
-            }
+        // HEAD-fallback paths: HEAD → 405; requestHead() handles the rest via fetch
+        if (path === 'head-fallback' || path === 'no-range-support') {
+            this.status = isHead ? 405 : 200;
+            this.statusText = isHead ? 'Method Not Allowed' : 'OK';
+            this.response = null;
             return this.#endResponse();
         }
 

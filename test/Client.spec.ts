@@ -56,44 +56,47 @@ describe('HTTP Client', () => {
 
     describe('HEAD simulation fallback', () => {
         it('should fall back to Range GET when HEAD is not supported', async () => {
-            const headers = await client.head('/head-fallback');
-
-            expect(headers).toEqual({ 'Content-Type': 'application/json' });
-        });
-
-        it('should fall back to plain GET (fetch) when Range GET is also unsupported', async () => {
-            // Use a custom baseRequest so Range header reaches the mock
-            // (JSDOM's Headers class silently drops the Range header, so the
-            // global XHR mock cannot observe it)
-            const fallbackClient = new HTTPClient({
-                baseURI: 'http://localhost/',
-                baseRequest: ({ method, headers }) => {
-                    let status = 200;
-                    if (method === 'HEAD') status = 405;
-                    else if ('Range' in Object(headers)) status = 416;
-
-                    return {
-                        response: Promise.resolve({
-                            status,
-                            statusText: 'Test',
-                            headers: {},
-                            body: null
-                        }),
-                        download: (async function* () {})()
-                    };
-                }
-            });
+            // HEAD fails via XHR mock (405); requestHead() uses fetch for Range GET
             const { fetch } = globalThis,
-                mockHeaders = { 'Content-Type': 'application/octet-stream' };
+                mockBody = new ArrayBuffer(4100),
+                mockHeaders = { 'Content-Type': 'application/json' };
 
             globalThis.fetch = async () =>
                 ({
+                    ok: true,
                     headers: new Headers(mockHeaders),
+                    arrayBuffer: async () => mockBody,
                     body: null
                 }) as unknown as Response;
 
             try {
-                const headers = await fallbackClient.head('/no-range-support');
+                const headers = await client.head('/head-fallback');
+
+                expect(headers).toEqual(mockHeaders);
+            } finally {
+                globalThis.fetch = fetch;
+            }
+        });
+
+        it('should fall back to plain GET (fetch) when Range GET is also unsupported', async () => {
+            // HEAD fails via XHR mock (405); Range GET fetch throws; plain GET fetch succeeds
+            const { fetch } = globalThis,
+                mockHeaders = { 'Content-Type': 'application/octet-stream' };
+            let callCount = 0;
+
+            globalThis.fetch = async () => {
+                callCount++;
+
+                if (callCount === 1) throw new Error('Range Not Satisfiable');
+
+                return {
+                    headers: new Headers(mockHeaders),
+                    body: { cancel: async () => {} }
+                } as unknown as Response;
+            };
+
+            try {
+                const headers = await client.head('/no-range-support');
 
                 expect(headers).toEqual(mockHeaders);
             } finally {

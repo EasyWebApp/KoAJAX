@@ -277,3 +277,78 @@ export async function parseFetchBody<B>(
 
 export const request =
     typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;
+
+/**
+ * Minimum byte count for magic-number–based file type detection,
+ * consistent with the file-type library
+ * {@link https://github.com/sindresorhus/file-type}.
+ */
+export const FILE_TYPE_MAGIC_NUMBER_SIZE = 4100;
+
+export interface HeadResponse {
+    headers: Response['headers'];
+    /** First {@link FILE_TYPE_MAGIC_NUMBER_SIZE} bytes, available when the
+     *  server honours `Range` requests. */
+    body?: ArrayBuffer;
+}
+
+/**
+ * Simulates a `HEAD` request when the server does not support `HEAD`.
+ * Tries, in order:
+ * 1. A `Range` GET to retrieve the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
+ *    bytes (magic-number file header).
+ * 2. A plain `GET` whose response body is immediately cancelled.
+ */
+export async function requestHead({
+    path,
+    headers,
+    withCredentials,
+    timeout,
+    signal
+}: Request): Promise<HeadResponse> {
+    const normalizedHeaders: Record<string, string> = !headers
+        ? {}
+        : headers instanceof Headers
+          ? Object.fromEntries(headers)
+          : Array.isArray(headers)
+            ? Object.fromEntries(headers)
+            : (headers as Record<string, string>);
+
+    const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
+        Boolean
+    ) as AbortSignal[];
+    const fetchOptions: globalThis.RequestInit = {
+        credentials: withCredentials ? 'include' : 'omit',
+        signal: signals[1] ? AbortSignal.any(signals) : signals[0]
+    };
+
+    const toHeaders = (raw: globalThis.Headers) =>
+        parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
+
+    // Fallback 1: Range GET – read magic-number bytes only
+    try {
+        const response = await fetch(path + '', {
+            ...fetchOptions,
+            headers: {
+                ...normalizedHeaders,
+                Range: `bytes=0-${FILE_TYPE_MAGIC_NUMBER_SIZE - 1}`
+            }
+        });
+        if (!response.ok)
+            throw new Error(`${response.status} ${response.statusText}`);
+
+        const body = await response.arrayBuffer();
+        return { headers: toHeaders(response.headers), body };
+    } catch {
+        // Server does not support Range requests; fall back to plain GET
+    }
+
+    // Fallback 2: plain GET – cancel body stream after headers arrive
+    const rawResponse = await fetch(path + '', {
+        ...fetchOptions,
+        headers: normalizedHeaders
+    });
+    rawResponse.body?.cancel();
+
+    return { headers: toHeaders(rawResponse.headers) };
+}

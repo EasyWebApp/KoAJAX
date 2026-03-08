@@ -6,17 +6,11 @@ import {
     request,
     BodyRequestMethods,
     HTTPError,
-    parseHeaders
+    requestHead
 } from './HTTPRequest';
 import { ProgressData, serialize } from './utility';
 
 const { splice } = Array.prototype;
-
-/**
- * Minimum byte count for magic number-based file type detection,
- * consistent with the file-type library {@link https://github.com/sindresorhus/file-type}.
- */
-const FILE_TYPE_MAGIC_NUMBER_SIZE = 4100;
 
 export interface Context {
     request: Request;
@@ -87,8 +81,17 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         }
         await next();
 
-        if (response.status > 299)
+        if (response.status > 299) {
+            if (method === 'HEAD') {
+                Object.assign(
+                    response,
+                    { status: 200, statusText: 'OK' },
+                    await requestHead(request)
+                );
+                return;
+            }
             throw new HTTPError(response.statusText, request, response);
+        }
     };
 
     use(...middlewares: Middleware<T>[]) {
@@ -113,50 +116,13 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         headers?: Request['headers'],
         options?: MethodOptions
     ) {
-        // Try actual HEAD request
-        try {
-            const { headers: data } = await this.request({
-                method: 'HEAD',
-                path,
-                headers,
-                ...options
-            });
-            return data;
-        } catch {
-            // Server does not support HEAD; try fallback strategies below
-        }
-        // Fallback 1: simulate HEAD with a Range GET (magic number byte count)
-        try {
-            const { headers: data } = await this.get(
-                path,
-                {
-                    ...headers,
-                    Range: `bytes=0-${FILE_TYPE_MAGIC_NUMBER_SIZE - 1}`
-                },
-                options
-            );
-            return data;
-        } catch {
-            // Server does not support Range requests; fall back to plain GET
-        }
-        // Fallback 2: plain GET – cancel the body stream after headers arrive
-        const URI = new URL(path, this.baseURI) + '',
-            { withCredentials, timeout } = { ...this.options, ...options };
-        const signals = [
-            options?.signal,
-            timeout && AbortSignal.timeout(timeout)
-        ].filter(Boolean) as AbortSignal[];
-
-        const response = await fetch(URI, {
+        const { headers: data } = await this.request({
+            method: 'HEAD',
+            path,
             headers,
-            credentials: withCredentials ? 'include' : 'omit',
-            signal: signals[1] ? AbortSignal.any(signals) : signals[0]
+            ...options
         });
-        response.body?.cancel();
-
-        return parseHeaders(
-            [...response.headers].map(([k, v]) => `${k}: ${v}`).join('\n')
-        );
+        return data;
     }
 
     get<B>(
