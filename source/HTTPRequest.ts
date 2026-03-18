@@ -62,218 +62,86 @@ export const headerParser = {
         )
 };
 
-export const parseHeaders = (raw: string): Response['headers'] =>
-    Object.fromEntries(
-        Array.from(
-            raw.trim().matchAll(/^([\w-]+):\s*(.*)/gm),
-            ([_, key, value]) => {
-                key = key.replace(/(^[a-z]|-[a-z])/g, char =>
-                    char.toUpperCase()
-                );
-                return [key, headerParser[key]?.(value) ?? value];
-            }
-        )
-    );
-export function parseBody<T>(raw: string, contentType: string): T {
-    if (contentType.includes('json')) return parseJSON(raw);
-
-    if (contentType.match(/html|xml/))
-        try {
-            return parseDocument(raw, contentType) as T;
-        } catch {}
-
-    if (contentType.includes('text')) return raw as T;
-
-    return new TextEncoder().encode(raw).buffer as T;
+export interface FileHeaderInfo {
+    mimeType?: string;
+    extension?: string;
+    contentLength?: number;
+    lastModified?: Date;
+    etag?: string;
 }
 
-export interface RequestResult<B> {
-    response: Promise<Response<B>>;
-    upload?: AsyncGenerator<ProgressData>;
-    download: AsyncGenerator<ProgressData>;
+const MAGIC_NUMBERS: Record<string, { mimeType: string; extension: string }> = {
+    '89504E47': { mimeType: 'image/png', extension: 'png' },
+    'FFD8FF': { mimeType: 'image/jpeg', extension: 'jpg' },
+    '47494638': { mimeType: 'image/gif', extension: 'gif' },
+    '52494646': { mimeType: 'image/webp', extension: 'webp' },
+    '25504446': { mimeType: 'application/pdf', extension: 'pdf' },
+    '504B0304': { mimeType: 'application/zip', extension: 'zip' },
+    '1F8B08': { mimeType: 'application/gzip', extension: 'gz' },
+    'D0CF11E0': { mimeType: 'application/vnd.ms-office', extension: 'doc' }
+};
+
+function detectMagicNumber(buffer: ArrayBuffer): { mimeType?: string; extension?: string } {
+    const bytes = new Uint8Array(buffer, 0, 8);
+    const hex = Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+
+    for (const [magic, info] of Object.entries(MAGIC_NUMBERS)) {
+        if (hex.startsWith(magic)) {
+            return info;
+        }
+    }
+    return {};
 }
 
-export function requestXHR<B>({
-    method = 'GET',
-    path,
-    headers = {},
-    body,
-    signal,
-    ...rest
-}: Request): RequestResult<B> {
-    const request = new XMLHttpRequest();
-    const header = new Headers(headers);
-    const bodyPromise =
-        body instanceof globalThis.ReadableStream
-            ? Array.fromAsync(body as ReadableStream).then(
-                  parts => new Blob(parts)
-              )
-            : Promise.resolve(body);
-    const abort = () => request.abort();
-
-    signal?.addEventListener('abort', abort);
-
-    const response = new Promise<Response<B>>((resolve, reject) => {
-        request.onreadystatechange = () => {
-            const { readyState, status, statusText, responseType } = request;
-
-            if (readyState !== 4 || (!status && !signal?.aborted)) return;
-
-            resolve({
-                status,
-                statusText,
-                headers: parseHeaders(request.getAllResponseHeaders()),
-                body:
-                    responseType && responseType !== 'text'
-                        ? request.response
-                        : request.responseText
-            });
-        };
-        request.onerror = request.ontimeout = reject;
-
-        const [MIMEType] = header.get('Accept')?.split(',') || [
-            rest.responseType === 'document'
-                ? 'application/xhtml+xml'
-                : rest.responseType === 'json'
-                  ? 'application/json'
-                  : ''
-        ];
-        if (MIMEType) request.overrideMimeType(MIMEType);
-
-        request.open(method, path + '');
-
-        for (const [key, value] of header) request.setRequestHeader(key, value);
-
-        Object.assign(request, rest);
-
-        bodyPromise.then(body => request.send(body));
-    }).then(({ body, ...meta }) => {
-        signal?.throwIfAborted();
-
-        const contentType = request.getResponseHeader('Content-Type') || '';
-
-        if (typeof body === 'string' && !contentType.includes('text'))
-            body = parseBody(body, contentType);
-
-        return { ...meta, body };
+export async function readFileHeaders(url: string | URL, options: RequestOptions = {}): Promise<FileHeaderInfo> {
+    const response = await fetch(url, {
+        method: 'HEAD',
+        ...options
     });
 
-    response.finally(() => signal?.removeEventListener('abort', abort));
+    if (!response.ok) {
+        throw new Error(`Failed to read file headers: ${response.status} ${response.statusText}`);
+    }
+
+    const headers = response.headers;
+    const contentType = headers.get('content-type');
+    const contentLength = headers.get('content-length');
+    const lastModified = headers.get('last-modified');
+    const etag = headers.get('etag');
+
+    let mimeType = contentType?.split(';')[0];
+    let extension: string | undefined;
+
+    // If no content-type or generic type, try to detect via partial content
+    if (!mimeType || mimeType === 'application/octet-stream') {
+        try {
+            const partialResponse = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Range': 'bytes=0-7'
+                },
+                ...options
+            });
+
+            if (partialResponse.ok && partialResponse.body) {
+                const buffer = await partialResponse.arrayBuffer();
+                const detected = detectMagicNumber(buffer);
+                mimeType = detected.mimeType || mimeType;
+                extension = detected.extension;
+            }
+        } catch {
+            // Fallback to headers only if partial request fails
+        }
+    }
 
     return {
-        response,
-        upload: streamFromProgress(request.upload),
-        download: streamFromProgress(request)
+        mimeType,
+        extension,
+        contentLength: contentLength ? parseInt(contentLength, 10) : undefined,
+        lastModified: lastModified ? new Date(lastModified) : undefined,
+        etag: etag || undefined
     };
 }
-
-export function requestFetch<B>({
-    path,
-    method,
-    headers,
-    withCredentials,
-    body,
-    signal,
-    timeout,
-    responseType
-}: Request): RequestResult<B> {
-    const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
-        Boolean
-    );
-    headers =
-        headers instanceof Headers
-            ? Object.fromEntries(headers.entries())
-            : headers instanceof Array
-              ? Object.fromEntries(headers)
-              : headers;
-    headers =
-        responseType === 'text'
-            ? { ...headers, Accept: 'text/plain' }
-            : responseType === 'json'
-              ? { ...headers, Accept: 'application/json' }
-              : responseType === 'document'
-                ? {
-                      ...headers,
-                      Accept: 'text/html, application/xhtml+xml, application/xml'
-                  }
-                : responseType === 'arraybuffer' || responseType === 'blob'
-                  ? { ...headers, Accept: 'application/octet-stream' }
-                  : headers;
-    const isStream = body instanceof globalThis.ReadableStream;
-    var upload: AsyncGenerator<ProgressData> | undefined;
-
-    if (isStream) {
-        const uploadProgress = new EventTarget();
-
-        body = globalThis.ReadableStream['from'](
-            emitStreamProgress(
-                body as ReadableStream<Uint8Array>,
-                +headers['Content-Length'],
-                uploadProgress
-            )
-        ) as ReadableStream<Uint8Array>;
-
-        upload = streamFromProgress(uploadProgress);
-    }
-    const downloadProgress = new EventTarget();
-
-    const response = fetch(path + '', {
-        method,
-        headers,
-        credentials: withCredentials ? 'include' : 'omit',
-        body,
-        signal: signals[0] && AbortSignal.any(signals),
-        // @ts-expect-error https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests
-        duplex: isStream ? 'half' : undefined
-    }).then(response =>
-        parseResponse<B>(response, responseType, downloadProgress)
-    );
-    return { response, upload, download: streamFromProgress(downloadProgress) };
-}
-
-export async function parseResponse<B>(
-    { status, statusText, headers, body }: globalThis.Response,
-    responseType: Request['responseType'],
-    downloadProgress: ProgressEventTarget
-): Promise<Response<B>> {
-    const stream = globalThis.ReadableStream['from'](
-        emitStreamProgress(
-            body as ReadableStream<Uint8Array>,
-            +headers.get('Content-Length'),
-            downloadProgress
-        )
-    ) as ReadableStream<Uint8Array>;
-
-    const contentType = headers.get('Content-Type') || '';
-
-    const header = parseHeaders(
-        [...headers].map(([key, value]) => `${key}: ${value}`).join('\n')
-    );
-    const rBody =
-        status === 204
-            ? undefined
-            : await parseFetchBody<B>(stream, contentType, responseType);
-
-    return { status, statusText, headers: header, body: rBody };
-}
-
-export async function parseFetchBody<B>(
-    stream: ReadableStream<Uint8Array>,
-    contentType: string,
-    responseType: Request['responseType']
-) {
-    const blob = new Blob(await Array.fromAsync(stream), { type: contentType });
-
-    if (responseType === 'blob') return blob as B;
-
-    if (responseType === 'arraybuffer') return blob.arrayBuffer() as B;
-
-    const text = await blob.text();
-
-    if (responseType === 'text') return text as B;
-
-    return parseBody<B>(text, contentType);
-}
-
-export const request =
-    typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;

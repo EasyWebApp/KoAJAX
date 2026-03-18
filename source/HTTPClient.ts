@@ -58,187 +58,178 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         super.use(async ({ request: data, response }) => {
             data.path = new URL(data.path + '', this.baseURI) + '';
 
-            Object.assign(
-                response,
-                await this.baseRequest({ ...options, ...data }).response
-            );
+            // Handle HEAD request simulation
+            if (data.method === 'HEAD') {
+                try {
+                    // First try a Range request to get only headers
+                    const rangeHeaders = {
+                        ...data.headers,
+                        'Range': 'bytes=0-0'
+                    };
+                    
+                    const rangeResponse = await this.baseRequest({
+                        ...this.options,
+                        ...data,
+                        method: 'GET',
+                        headers: rangeHeaders,
+                        signal: data.signal
+                    });
+
+                    // Create HEAD-like response by copying headers and removing body
+                    Object.assign(response, {
+                        status: rangeResponse.status,
+                        statusText: rangeResponse.statusText,
+                        headers: rangeResponse.headers,
+                        body: null
+                    });
+
+                    // Close the stream if it exists
+                    if (rangeResponse.body && typeof rangeResponse.body.cancel === 'function') {
+                        rangeResponse.body.cancel();
+                    }
+                } catch (error) {
+                    // Fallback: Make GET request and immediately terminate
+                    const getResponse = await this.baseRequest({
+                        ...this.options,
+                        ...data,
+                        method: 'GET',
+                        signal: data.signal
+                    });
+
+                    Object.assign(response, {
+                        status: getResponse.status,
+                        statusText: getResponse.statusText,
+                        headers: getResponse.headers,
+                        body: null
+                    });
+
+                    // Terminate the stream immediately
+                    if (getResponse.body && typeof getResponse.body.cancel === 'function') {
+                        getResponse.body.cancel();
+                    }
+                }
+            } else {
+                Object.assign(
+                    response,
+                    await this.baseRequest({ ...this.options, ...data })
+                );
+            }
         });
     }
 
-    defaultWare: Middleware<T> = async ({ request, response }, next) => {
-        const { method = 'GET', headers = {}, body } = request;
+    defaultWare: Middleware<T> = ({ request, response }, next) => next();
 
-        if (method in BodyRequestMethods && body && typeof body === 'object') {
-            const { contentType, data } = serialize(
-                body,
-                headers['Content-Type']
-            );
-            if (contentType) headers['Content-Type'] = contentType;
-            request.body = data;
-        }
-        await next();
-
-        if (response.status > 299)
-            throw new HTTPError(response.statusText, request, response);
-    };
-
-    use(...middlewares: Middleware<T>[]) {
-        splice.call(this, -2, 0, ...middlewares);
-
-        return this;
-    }
-
-    async request<B>(data: T['request']): Promise<Response<B>> {
-        const context = {
-            request: { ...data, headers: { ...data.headers } },
-            response: {}
-        } as T;
-
-        await this.execute(context);
-
-        return context.response;
-    }
-
-    async head(
-        path: Request['path'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        const { headers: data } = await this.request({
-            method: 'HEAD',
-            path,
-            headers,
-            ...options
-        });
-        return data;
-    }
-
-    get<B>(
-        path: Request['path'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        return this.request<B>({ method: 'GET', path, headers, ...options });
-    }
-
-    post<B>(
-        path: Request['path'],
-        body?: Request['body'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        return this.request<B>({
-            method: 'POST',
-            path,
-            headers,
-            body,
-            ...options
+    async get(path: string, options: MethodOptions = {}) {
+        return this.execute<T>({
+            request: { method: 'GET', path, ...options },
+            response: {} as Response
         });
     }
 
-    put<B>(
-        path: Request['path'],
-        body?: Request['body'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        return this.request<B>({
-            method: 'PUT',
-            path,
-            headers,
-            body,
-            ...options
+    async delete(path: string, options: MethodOptions = {}) {
+        return this.execute<T>({
+            request: { method: 'DELETE', path, ...options },
+            response: {} as Response
         });
     }
 
-    patch<B>(
-        path: Request['path'],
-        body?: Request['body'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        return this.request<B>({
-            method: 'PATCH',
-            path,
-            headers,
-            body,
-            ...options
+    async head(path: string, options: MethodOptions = {}) {
+        return this.execute<T>({
+            request: { method: 'HEAD', path, ...options },
+            response: {} as Response
         });
     }
 
-    delete<B>(
-        path: Request['path'],
-        body?: Request['body'],
-        headers?: Request['headers'],
-        options?: MethodOptions
-    ) {
-        return this.request<B>({
-            method: 'DELETE',
-            path,
-            headers,
-            body,
-            ...options
+    async options(path: string, options: MethodOptions = {}) {
+        return this.execute<T>({
+            request: { method: 'OPTIONS', path, ...options },
+            response: {} as Response
         });
+    }
+
+    private bodyRequest<D = any>(
+        method: BodyRequestMethods,
+        path: string,
+        body?: D,
+        { headers, ...rest }: MethodOptions = {}
+    ) {
+        return this.execute<T>({
+            request: {
+                method,
+                path,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...headers
+                },
+                body: serialize(body),
+                ...rest
+            },
+            response: {} as Response
+        });
+    }
+
+    async post<D = any>(
+        path: string,
+        body?: D,
+        options: MethodOptions = {}
+    ) {
+        return this.bodyRequest('POST', path, body, options);
+    }
+
+    async put<D = any>(path: string, body?: D, options: MethodOptions = {}) {
+        return this.bodyRequest('PUT', path, body, options);
+    }
+
+    async patch<D = any>(
+        path: string,
+        body?: D,
+        options: MethodOptions = {}
+    ) {
+        return this.bodyRequest('PATCH', path, body, options);
     }
 
     async *download(
-        path: Request['path'],
-        {
-            headers,
-            chunkSize = 1024 ** 2,
-            range: [start = 0, end = Infinity] = [],
-            ...options
-        }: DownloadOptions = {}
-    ): AsyncGenerator<TransferProgress> {
-        var total = 0;
+        path: string,
+        { range, chunkSize = 65536, ...options }: DownloadOptions = {}
+    ) {
+        const rangeText = range?.join('-');
 
-        function setEndAsHeader(length: number) {
-            total = length;
-
-            if (end === Infinity) end = total;
-        }
-
-        try {
-            const { 'Content-Length': length } = await this.head(
-                path,
-                headers,
-                options
-            );
-            setEndAsHeader(+length);
-        } catch (error) {
-            console.error(error);
-        }
-
-        for (
-            let i = start, j = i - 1 + chunkSize;
-            i < end;
-            i = j + 1, j += chunkSize
-        ) {
-            const {
-                status,
-                headers: { 'Content-Range': range },
-                body
-            } = await this.get<ArrayBuffer>(
-                path,
-                { ...headers, Range: `bytes=${i}-${j}` },
-                options
-            );
-            const totalBytes = +(range as string)?.split('/').pop();
-
-            if (totalBytes) setEndAsHeader(totalBytes);
-
-            if (status !== 206) {
-                yield { total, loaded: total, percent: 100, buffer: body };
-                break;
+        const { headers, body } = (await this.get(path, {
+            ...options,
+            headers: {
+                ...options.headers,
+                ...(rangeText && { Range: `bytes=${rangeText}` })
             }
-            const loaded = i + body.byteLength;
+        })) as T & { response: Response };
 
-            yield {
-                total,
-                loaded,
-                percent: +((loaded / total) * 100).toFixed(2),
-                buffer: body
-            };
+        if (!body) throw new HTTPError('Empty response body');
+
+        const reader = body.getReader(),
+            size = +headers['Content-Length'];
+
+        let received = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            const buffer = value.buffer;
+
+            received += buffer.byteLength;
+
+            const total = size || received,
+                percent = +((received / total) * 100).toFixed(2);
+
+            yield { total, received, percent, buffer } as TransferProgress;
         }
+    }
+
+    async upload<D = any>(
+        path: string,
+        body?: D,
+        options: MethodOptions = {}
+    ) {
+        return this.post<D>(path, body, options);
     }
 }
