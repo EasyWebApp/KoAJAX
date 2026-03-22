@@ -380,7 +380,12 @@ export function request<B>(option: Request): RequestResult<B> {
 
     const response = requestHead(option).then(
         ({ headers, body }) =>
-            ({ status: 200, statusText: 'OK', headers, body }) as Response<B>
+            ({
+                status: 204,
+                statusText: 'No Content',
+                headers,
+                body
+            }) as Response<B>
     );
     return {
         response,

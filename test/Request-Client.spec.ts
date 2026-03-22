@@ -94,7 +94,6 @@ describe('HEAD simulation fallback', () => {
 
         try {
             const result = await requestHead({
-                method: 'HEAD',
                 path: 'http://example.com/'
             });
 
@@ -108,7 +107,10 @@ describe('HEAD simulation fallback', () => {
     it('should fall back to Range GET when HEAD is not supported', async () => {
         const { fetch } = globalThis,
             mockBody = new ArrayBuffer(4100),
-            mockHeaders = { 'Content-Type': 'application/octet-stream' };
+            mockHeaders = {
+                'Content-Type': 'application/octet-stream',
+                'Content-Range': 'bytes 0-4099/102400'
+            };
         let callCount = 0;
 
         globalThis.fetch = async () => {
@@ -132,7 +134,6 @@ describe('HEAD simulation fallback', () => {
 
         try {
             const result = await requestHead({
-                method: 'HEAD',
                 path: 'http://example.com/file.bin'
             });
 
@@ -167,7 +168,6 @@ describe('HEAD simulation fallback', () => {
 
         try {
             const { headers } = await requestHead({
-                method: 'HEAD',
                 path: 'http://example.com/file.bin'
             });
 
@@ -194,7 +194,7 @@ describe('HEAD simulation fallback', () => {
             });
             const result = await response;
 
-            expect(result.status).toBe(200);
+            expect(result.status).toBe(204);
             expect(result.headers).toEqual(mockHeaders);
         } finally {
             globalThis.fetch = fetch;

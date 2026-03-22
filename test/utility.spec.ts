@@ -1,4 +1,4 @@
-import { ReadableStream } from './XMLHttpRequest';
+import './XMLHttpRequest';
 
 import {
     encodeBase64,
@@ -106,22 +106,10 @@ describe('HTTP utility', () => {
     });
 
     describe('ReadableStream helpers', () => {
-        function makeStream(chunks: Uint8Array[]) {
-            return new ReadableStream<Uint8Array>({
-                start(ctrl) {
-                    for (const chunk of chunks) ctrl.enqueue(chunk);
-                    ctrl.close();
-                }
-            });
-        }
-
         it('should yield all chunks when stream is smaller than limit', async () => {
             const data = new Uint8Array([1, 2, 3]);
             const chunks = await Array.fromAsync(
-                takeBytes(
-                    makeStream([data]) as unknown as AsyncIterable<Uint8Array>,
-                    100
-                )
+                takeBytes(new Blob([data]).stream(), 100)
             );
 
             expect(
@@ -134,29 +122,24 @@ describe('HTTP utility', () => {
             const a = new Uint8Array(4100).fill(1);
             const b = new Uint8Array(100).fill(2);
             const chunks = await Array.fromAsync(
-                takeBytes(
-                    makeStream([a, b]) as unknown as AsyncIterable<Uint8Array>,
-                    4100
-                )
+                takeBytes(new Blob([a, b]).stream(), 4100)
             );
             const totalBytes = chunks.reduce((s, c) => s + c.byteLength, 0);
 
-            // First chunk (4100 bytes) is yielded; limit reached → second chunk is skipped
+            // Exactly 4100 bytes should be read — no more
             expect(totalBytes).toBe(4100);
         });
 
-        it('readBytes should stop at chunk boundaries nearest the limit', async () => {
-            // Two chunks of 3 bytes each; limit=4 → first chunk (3) < 4, second chunk (3) makes
-            // total=6 >= 4 and triggers break, so both chunks are collected (6 bytes total)
+        it('readBytes should read exactly the limit bytes', async () => {
             const data = new Uint8Array([1, 2, 3]);
-            const buffer = await readBytes(makeStream([data, data]) as any, 4);
+            const buffer = await readBytes(new Blob([data, data]).stream(), 4);
 
-            expect(buffer.byteLength).toBe(6);
+            expect(buffer.byteLength).toBe(4);
         });
 
         it('readBytes should collect all bytes when no limit is given', async () => {
             const data = new Uint8Array(10).fill(7);
-            const buffer = await readBytes(makeStream([data]) as any);
+            const buffer = await readBytes(new Blob([data]).stream());
 
             expect(new Uint8Array(buffer)).toEqual(data);
         });

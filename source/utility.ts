@@ -164,12 +164,19 @@ export function serialize<T>(
 }
 
 export async function* takeBytes(
-    stream: AsyncIterable<Uint8Array>,
+    stream: ReadableStream<Uint8Array>,
     limit = Infinity
 ) {
     let total = 0;
 
-    for await (const chunk of stream) {
+    for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+        const remaining = limit - total;
+
+        if (chunk.byteLength > remaining) {
+            yield chunk.slice(0, remaining);
+            break;
+        }
+
         yield new Uint8Array(chunk);
 
         total += chunk.byteLength;
@@ -179,7 +186,7 @@ export async function* takeBytes(
 }
 
 export async function readBytes(
-    stream: import('web-streams-polyfill').ReadableStream<Uint8Array>,
+    stream: ReadableStream<Uint8Array>,
     limit = Infinity
 ) {
     const chunks = await Array.fromAsync(takeBytes(stream, limit));
