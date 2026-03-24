@@ -6,6 +6,7 @@ import {
     parseDocument,
     ProgressData,
     ProgressEventTarget,
+    readBytes,
     streamFromProgress
 } from './utility';
 
@@ -275,5 +276,119 @@ export async function parseFetchBody<B>(
     return parseBody<B>(text, contentType);
 }
 
-export const request =
+export const rawRequest =
     typeof globalThis.XMLHttpRequest === 'function' ? requestXHR : requestFetch;
+
+/**
+ * Minimum byte count for magic-number–based file type detection,
+ * consistent with the file-type library
+ * {@link https://github.com/sindresorhus/file-type}.
+ */
+export const FILE_TYPE_MAGIC_NUMBER_SIZE = 4100;
+
+export interface HeadResponse {
+    headers: Response['headers'];
+    /** First {@link FILE_TYPE_MAGIC_NUMBER_SIZE} bytes from the response body. */
+    body?: ArrayBuffer;
+}
+
+/**
+ * Sends a `HEAD` request, falling back to simulation when the server does
+ * not support `HEAD`. Tries, in order:
+ * 1. A standard `HEAD` request via `fetch()`.
+ * 2. A `Range` GET to retrieve the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
+ *    bytes (magic-number file header).
+ * 3. A plain `GET` that reads the first {@link FILE_TYPE_MAGIC_NUMBER_SIZE}
+ *    bytes then cancels the body stream.
+ */
+export async function requestHead({
+    path,
+    headers,
+    withCredentials,
+    timeout,
+    signal
+}: Request): Promise<HeadResponse> {
+    const normalizedHeaders: Record<string, string> = !headers
+        ? {}
+        : headers instanceof Headers
+          ? Object.fromEntries(headers)
+          : Array.isArray(headers)
+            ? Object.fromEntries(headers)
+            : (headers as Record<string, string>);
+
+    const signals = [signal, timeout && AbortSignal.timeout(timeout)].filter(
+        Boolean
+    ) as AbortSignal[];
+
+    const fetchOptions: globalThis.RequestInit = {
+        credentials: withCredentials ? 'include' : 'omit',
+        signal: signals[1] ? AbortSignal.any(signals) : signals[0]
+    };
+    const toHeaders = (raw: globalThis.Headers) =>
+        parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
+
+    // Tier 1: fetch() HEAD
+    try {
+        const response = await fetch(path + '', {
+            method: 'HEAD',
+            ...fetchOptions,
+            headers: normalizedHeaders
+        });
+        if (response.ok) return { headers: toHeaders(response.headers) };
+    } catch {
+        // HEAD not supported; fall through to simulation tiers
+    }
+
+    // Tier 2: Range GET – read magic-number bytes only
+    try {
+        const response = await fetch(path + '', {
+            ...fetchOptions,
+            headers: {
+                ...normalizedHeaders,
+                Range: `bytes=0-${FILE_TYPE_MAGIC_NUMBER_SIZE - 1}`
+            }
+        });
+        if (!response.ok)
+            throw new Error(`${response.status} ${response.statusText}`);
+
+        return {
+            headers: toHeaders(response.headers),
+            body: await response.arrayBuffer()
+        };
+    } catch {
+        // Server does not support Range requests; fall back to plain GET
+    }
+
+    // Tier 3: plain GET – read magic-number bytes then cancel the body stream
+    const response = await fetch(path, {
+        ...fetchOptions,
+        headers: normalizedHeaders
+    });
+    const body = await readBytes(
+        response.body as ReadableStream<Uint8Array>,
+        FILE_TYPE_MAGIC_NUMBER_SIZE
+    );
+    return { headers: toHeaders(response.headers), body };
+}
+
+/**
+ * Sends a {@link Request}, with automatic HEAD-simulation fallback for
+ * servers that do not support the `HEAD` method.
+ */
+export function request<B>(option: Request): RequestResult<B> {
+    if (option.method !== 'HEAD') return rawRequest<B>(option);
+
+    const response = requestHead(option).then(
+        ({ headers, body }) =>
+            ({
+                status: 204,
+                statusText: 'No Content',
+                headers,
+                body
+            }) as Response<B>
+    );
+    return {
+        response,
+        download: (async function* (): AsyncGenerator<ProgressData> {})()
+    };
+}

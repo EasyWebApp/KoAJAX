@@ -163,6 +163,41 @@ export function serialize<T>(
     throw new Error('Unserialized Object needs a specific Content-Type');
 }
 
+export async function* takeBytes(
+    stream: AsyncIterable<Uint8Array>,
+    limit = Infinity
+) {
+    let total = 0;
+
+    for await (const chunk of stream) {
+        const remaining = limit - total;
+
+        if (chunk.byteLength > remaining) {
+            yield chunk.slice(0, remaining);
+            break;
+        }
+        yield new Uint8Array(chunk);
+
+        total += chunk.byteLength;
+
+        if (total >= limit) break;
+    }
+}
+
+export async function readBytes(
+    stream: AsyncIterable<Uint8Array>,
+    limit = Infinity
+) {
+    const chunks = await Array.fromAsync(takeBytes(stream, limit));
+
+    return new Blob(chunks).arrayBuffer();
+}
+
+export const makeStream = (...chunks: BlobPart[]) =>
+    new Blob(
+        chunks as ArrayBuffer[]
+    ).stream() as import('web-streams-polyfill').ReadableStream<Uint8Array>;
+
 export type ProgressEventTarget = Pick<
     XMLHttpRequestEventTarget & FileReader,
     'dispatchEvent' | 'addEventListener' | 'removeEventListener'

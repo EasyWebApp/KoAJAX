@@ -49,7 +49,7 @@ export class XMLHttpRequest extends EventTarget {
     async #mockResponse(body: Request['body']) {
         if (this.readyState > 3) return;
 
-        this.status = Number(this.responseURL.split('/').slice(-1)[0]);
+        this.status = Number(this.responseURL.split('/').at(-1));
 
         switch (this.status) {
             case 200: {

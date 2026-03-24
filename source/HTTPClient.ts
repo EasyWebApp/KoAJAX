@@ -26,8 +26,10 @@ export type MethodOptions = Omit<
     'method' | 'path' | 'headers' | 'body'
 >;
 
-export interface DownloadOptions
-    extends Pick<Request, 'headers' | 'withCredentials' | 'signal'> {
+export interface DownloadOptions extends Pick<
+    Request,
+    'headers' | 'withCredentials' | 'signal'
+> {
     chunkSize?: number;
     range?: [number?, number?];
 }
@@ -56,7 +58,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
         super.use(this.defaultWare);
 
         super.use(async ({ request: data, response }) => {
-            data.path = new URL(data.path + '', this.baseURI) + '';
+            data.path = new URL(data.path, this.baseURI) + '';
 
             Object.assign(
                 response,
@@ -190,43 +192,25 @@ export class HTTPClient<T extends Context> extends Stack<T> {
             ...options
         }: DownloadOptions = {}
     ): AsyncGenerator<TransferProgress> {
-        var total = 0;
+        const { 'Content-Length': length } = await this.head(
+            path,
+            headers,
+            options
+        );
+        const total = +length;
 
-        function setEndAsHeader(length: number) {
-            total = length;
-
-            if (end === Infinity) end = total;
-        }
-
-        try {
-            const { 'Content-Length': length } = await this.head(
-                path,
-                headers,
-                options
-            );
-            setEndAsHeader(+length);
-        } catch (error) {
-            console.error(error);
-        }
+        if (end === Infinity) end = total;
 
         for (
             let i = start, j = i - 1 + chunkSize;
             i < end;
             i = j + 1, j += chunkSize
         ) {
-            const {
-                status,
-                headers: { 'Content-Range': range },
-                body
-            } = await this.get<ArrayBuffer>(
+            const { status, body } = await this.get<ArrayBuffer>(
                 path,
                 { ...headers, Range: `bytes=${i}-${j}` },
                 options
             );
-            const totalBytes = +(range as string)?.split('/').pop();
-
-            if (totalBytes) setEndAsHeader(totalBytes);
-
             if (status !== 206) {
                 yield { total, loaded: total, percent: 100, buffer: body };
                 break;
