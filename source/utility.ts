@@ -164,19 +164,18 @@ export function serialize<T>(
 }
 
 export async function* takeBytes(
-    stream: ReadableStream<Uint8Array>,
+    stream: AsyncIterable<Uint8Array>,
     limit = Infinity
 ) {
     let total = 0;
 
-    for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+    for await (const chunk of stream) {
         const remaining = limit - total;
 
         if (chunk.byteLength > remaining) {
             yield chunk.slice(0, remaining);
             break;
         }
-
         yield new Uint8Array(chunk);
 
         total += chunk.byteLength;
@@ -186,13 +185,18 @@ export async function* takeBytes(
 }
 
 export async function readBytes(
-    stream: ReadableStream<Uint8Array>,
+    stream: AsyncIterable<Uint8Array>,
     limit = Infinity
 ) {
     const chunks = await Array.fromAsync(takeBytes(stream, limit));
 
     return new Blob(chunks).arrayBuffer();
 }
+
+export const makeStream = (...chunks: BlobPart[]) =>
+    new Blob(
+        chunks as ArrayBuffer[]
+    ).stream() as import('web-streams-polyfill').ReadableStream<Uint8Array>;
 
 export type ProgressEventTarget = Pick<
     XMLHttpRequestEventTarget & FileReader,

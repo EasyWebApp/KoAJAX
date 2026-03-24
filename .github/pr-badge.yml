@@ -1,3 +1,5 @@
+# install https://pullrequestbadge.com/ first
+
 - icon: visualstudio
   label: 'GitHub.dev'
   message: 'PR-$prNumber'
