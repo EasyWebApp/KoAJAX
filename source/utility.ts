@@ -1,3 +1,4 @@
+import { ReadableStream } from 'web-streams-polyfill';
 import {
     createAsyncIterator,
     likeArray,
@@ -21,57 +22,67 @@ export enum FileMethod {
 
 const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
 
-export function polyfillProgressEvent() {
-    return (globalThis.ProgressEvent ||= class ProgressEvent<
-        T extends EventTarget = EventTarget
-    > extends Event {
-        declare target: T | null;
+export class ProgressEvent<T extends EventTarget = EventTarget> extends Event {
+    declare target: T | null;
 
-        lengthComputable: boolean;
-        total: number;
-        loaded: number;
+    lengthComputable: boolean;
+    total: number;
+    loaded: number;
 
-        constructor(
-            type: string,
-            { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
-        ) {
-            super(type, meta);
+    constructor(
+        type: string,
+        { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
+    ) {
+        super(type, meta);
 
-            this.lengthComputable = lengthComputable;
-            this.total = total;
-            this.loaded = loaded;
-        }
-    });
+        this.lengthComputable = lengthComputable;
+        this.total = total;
+        this.loaded = loaded;
+    }
 }
 
-export type UtilityRuntime = Partial<
+export const polyfillProgressEvent = () =>
+    (globalThis.ProgressEvent ||= ProgressEvent);
+
+export type DataRuntime = Partial<
     Pick<
         typeof globalThis,
-        | 'Blob'
         | 'DOMParser'
+        | 'Node'
+        | 'Document'
+        | 'HTMLElement'
+        | 'SVGElement'
         | 'FormData'
-        | 'FileReader'
         | 'URLSearchParams'
+        | 'Blob'
+        | 'FileReader'
         | 'ProgressEvent'
-    >
+    > & { ReadableStream: typeof ReadableStream }
 >;
 
-export const defaultUtilityRuntime: UtilityRuntime = {
-    Blob: globalThis.Blob,
+export const defaultDataRuntime: DataRuntime = {
     DOMParser: globalThis.DOMParser,
+    Node: globalThis.Node,
+    Document: globalThis.Document,
+    HTMLElement: globalThis.HTMLElement,
+    SVGElement: globalThis.SVGElement,
     FormData: globalThis.FormData,
-    FileReader: globalThis.FileReader,
     URLSearchParams: globalThis.URLSearchParams,
-    ProgressEvent: globalThis.ProgressEvent
+    Blob: globalThis.Blob,
+    FileReader: globalThis.FileReader,
+    ProgressEvent: globalThis.ProgressEvent || ProgressEvent,
+    ReadableStream
 };
 
-export class HTTPUtility {
-    constructor(public runtime: UtilityRuntime = defaultUtilityRuntime) {}
+export class DataToolkit {
+    constructor(public runtime: DataRuntime = defaultDataRuntime) {}
 
     parseDocument = async (text: string, contentType = '') => {
+        const { DOMParser } = this.runtime;
+
         const [type] = contentType?.split(';') || [];
 
-        return new this.runtime.DOMParser().parseFromString(
+        return new DOMParser().parseFromString(
             text,
             (type as DOMParserSupportedType) || 'text/html'
         );
@@ -79,6 +90,7 @@ export class HTTPUtility {
 
     makeFormData = (data: Record<string, any>) => {
         const { FormData } = this.runtime;
+
         const formData = new FormData();
 
         for (const [key, value] of Object.entries(data)) {
@@ -101,7 +113,9 @@ export class HTTPUtility {
         contentType: string;
         data: string | URLSearchParams | FormData;
     } => {
-        const { FormData, URLSearchParams } = this.runtime;
+        const { URLSearchParams, FormData, Document, HTMLElement, SVGElement } =
+            this.runtime;
+
         var contentType: string;
 
         if (!(root instanceof HTMLFormElement))
@@ -148,7 +162,9 @@ export class HTTPUtility {
         data: T | BodyInit;
         contentType?: string;
     } => {
-        const { URLSearchParams, FormData } = this.runtime;
+        const { Node, URLSearchParams, FormData, Blob, ReadableStream } =
+            this.runtime;
+
         const [type] = contentType?.split(';') || [];
 
         switch (type) {
@@ -189,8 +205,8 @@ export class HTTPUtility {
                 isTypedArray(data) ||
                 data instanceof ArrayBuffer ||
                 data instanceof DataView ||
-                data instanceof globalThis.Blob ||
-                data instanceof globalThis.ReadableStream
+                data instanceof Blob ||
+                data instanceof ReadableStream
             )
                 return {
                     contentType: 'application/octet-stream',
@@ -208,34 +224,29 @@ export class HTTPUtility {
         throw new Error('Unserialized Object needs a specific Content-Type');
     };
 
-    takeBytes = (
-        stream: AsyncIterable<Uint8Array>,
-        limit = Infinity
-    ): AsyncGenerator<Uint8Array<ArrayBuffer>> => {
-        return (async function* () {
-            let total = 0;
+    async *takeBytes(stream: AsyncIterable<Uint8Array>, limit = Infinity) {
+        let total = 0;
 
-            for await (const chunk of stream) {
-                const remaining = limit - total;
+        for await (const chunk of stream) {
+            const remaining = limit - total;
 
-                if (chunk.byteLength > remaining) {
-                    yield chunk.slice(0, remaining);
-                    break;
-                }
-                yield new Uint8Array(chunk);
-
-                total += chunk.byteLength;
-
-                if (total >= limit) break;
+            if (chunk.byteLength > remaining) {
+                yield chunk.slice(0, remaining);
+                break;
             }
-        })();
-    };
+            yield new Uint8Array(chunk);
 
+            total += chunk.byteLength;
+
+            if (total >= limit) break;
+        }
+    }
     readBytes = async (stream: AsyncIterable<Uint8Array>, limit = Infinity) => {
         const { Blob } = this.runtime;
+
         const chunks = await Array.fromAsync(this.takeBytes(stream, limit));
 
-        return new Blob(chunks as BlobPart[]).arrayBuffer();
+        return new Blob(chunks).arrayBuffer();
     };
 
     makeStream = (...chunks: BlobPart[]) => {
@@ -243,7 +254,7 @@ export class HTTPUtility {
 
         return new Blob(
             chunks as ArrayBuffer[]
-        ).stream() as import('web-streams-polyfill').ReadableStream<Uint8Array>;
+        ).stream() as ReadableStream<Uint8Array>;
     };
 
     streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
@@ -265,16 +276,14 @@ export class HTTPUtility {
         );
 
     emitStreamProgress = (
-        stream: import('web-streams-polyfill').ReadableStream<Uint8Array>,
+        stream: ReadableStream<Uint8Array>,
         total: number,
         eventTarget: ProgressEventTarget
     ): AsyncGenerator<Uint8Array> => {
-        const self = this;
+        const { ProgressEvent } = this.runtime;
 
         return (async function* () {
             var loaded = 0;
-            const ProgressEvent =
-                self.runtime.ProgressEvent ?? polyfillProgressEvent();
 
             for await (const chunk of stream) {
                 yield chunk;
@@ -297,6 +306,7 @@ export class HTTPUtility {
         encoding?: string
     ) => {
         const { FileReader } = this.runtime;
+
         const reader = new FileReader();
         const result = new Promise<string | ArrayBuffer>((resolve, reject) => {
             reader.onerror = reject;
@@ -313,6 +323,8 @@ export class HTTPUtility {
      * @return  Base64 encoded data
      */
     encodeBase64 = async (raw: string | Blob) => {
+        const { Blob } = this.runtime;
+
         if (raw instanceof Blob) {
             const text = await this.readAs(raw, 'dataURL').result;
 
@@ -326,16 +338,16 @@ export class HTTPUtility {
     };
 }
 
-const _defaultUtility = new HTTPUtility();
-
-export const parseDocument = _defaultUtility.parseDocument;
-export const makeFormData = _defaultUtility.makeFormData;
-export const serializeNode = _defaultUtility.serializeNode;
-export const serialize = _defaultUtility.serialize;
-export const takeBytes = _defaultUtility.takeBytes;
-export const readBytes = _defaultUtility.readBytes;
-export const makeStream = _defaultUtility.makeStream;
-export const streamFromProgress = _defaultUtility.streamFromProgress;
-export const emitStreamProgress = _defaultUtility.emitStreamProgress;
-export const readAs = _defaultUtility.readAs;
-export const encodeBase64 = _defaultUtility.encodeBase64;
+export const {
+    parseDocument,
+    makeFormData,
+    serializeNode,
+    serialize,
+    takeBytes,
+    readBytes,
+    makeStream,
+    streamFromProgress,
+    emitStreamProgress,
+    readAs,
+    encodeBase64
+} = new DataToolkit();

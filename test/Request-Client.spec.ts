@@ -1,11 +1,8 @@
-import { Blob, ReadableStream } from './XMLHttpRequest';
+import { Blob, mockHTTPRuntime, ReadableStream } from './XMLHttpRequest';
 
-import {
-    defaultRuntime,
-    HTTPToolkit,
-    requestFetch,
-    requestXHR
-} from '../source';
+import { defaultHTTPRuntime, HTTPToolkit } from '../source';
+
+const { requestFetch, requestXHR } = new HTTPToolkit(mockHTTPRuntime);
 
 describe('HTTP Request', () => {
     it('should return a Promise & an Observable with fetch()', async () => {
@@ -88,7 +85,7 @@ describe('HTTP Request', () => {
 
 describe('HEAD simulation fallback', () => {
     const createToolkit = (fetch: typeof globalThis.fetch) =>
-        new HTTPToolkit({ ...defaultRuntime, fetch });
+        new HTTPToolkit({ ...mockHTTPRuntime, fetch });
 
     it('should return headers when HEAD succeeds', async () => {
         const mockHeaders = { 'Content-Type': 'text/html' };
@@ -154,10 +151,8 @@ describe('HEAD simulation fallback', () => {
 
             return {
                 headers: new Headers(mockHeaders),
-                body: new (globalThis.ReadableStream as any)({
-                    start(ctrl: any) {
-                        ctrl.close();
-                    }
+                body: new ReadableStream({
+                    start: controller => controller.close()
                 })
             } as unknown as Response;
         }) as typeof globalThis.fetch);
@@ -191,8 +186,10 @@ describe('HEAD simulation fallback', () => {
 describe('HTTPToolkit', () => {
     it('should use injected fetch in requestFetch', async () => {
         let fetchCalled = false;
+
         const mockFetch = async () => {
             fetchCalled = true;
+
             return {
                 status: 204,
                 statusText: 'No Content',
@@ -204,18 +201,16 @@ describe('HTTPToolkit', () => {
         };
 
         const toolkit = new HTTPToolkit({
-            EventTarget: globalThis.EventTarget,
+            ...defaultHTTPRuntime,
             XMLHttpRequest: undefined,
-            Blob: globalThis.Blob,
-            Headers: globalThis.Headers,
-            ReadableStream,
             fetch: mockFetch as unknown as typeof globalThis.fetch
         });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestFetch);
 
         const { response } = toolkit.requestFetch({
             path: 'http://example.com/test'
         });
-
         const result = await response;
 
         expect(fetchCalled).toBe(true);
@@ -226,14 +221,13 @@ describe('HTTPToolkit', () => {
         const { XMLHttpRequest } = await import('./XMLHttpRequest');
 
         const toolkit = new HTTPToolkit({
-            EventTarget: globalThis.EventTarget,
+            ...defaultHTTPRuntime,
             XMLHttpRequest:
                 XMLHttpRequest as unknown as typeof globalThis.XMLHttpRequest,
-            Blob: globalThis.Blob,
-            Headers: globalThis.Headers,
-            ReadableStream,
             fetch: globalThis.fetch
         });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestXHR);
 
         const { response } = toolkit.requestXHR({
             path: '/200',
@@ -246,33 +240,5 @@ describe('HTTPToolkit', () => {
             headers: { 'Content-Type': 'application/json' },
             body: { message: 'Hello, World!' }
         });
-    });
-
-    it('rawRequest should use requestXHR when XMLHttpRequest is available', () => {
-        const { XMLHttpRequest } = require('./XMLHttpRequest');
-
-        const toolkit = new HTTPToolkit({
-            EventTarget: globalThis.EventTarget,
-            XMLHttpRequest,
-            Blob: globalThis.Blob,
-            Headers: globalThis.Headers,
-            ReadableStream,
-            fetch: globalThis.fetch
-        });
-
-        expect(toolkit.rawRequest).toBe(toolkit.requestXHR);
-    });
-
-    it('rawRequest should use requestFetch when XMLHttpRequest is unavailable', () => {
-        const toolkit = new HTTPToolkit({
-            EventTarget: globalThis.EventTarget,
-            XMLHttpRequest: undefined,
-            Blob: globalThis.Blob,
-            Headers: globalThis.Headers,
-            ReadableStream,
-            fetch: globalThis.fetch
-        });
-
-        expect(toolkit.rawRequest).toBe(toolkit.requestFetch);
     });
 });

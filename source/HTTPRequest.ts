@@ -2,12 +2,11 @@ import { ReadableStream, ReadableStreamLike } from 'web-streams-polyfill';
 import { parseJSON } from 'web-utility';
 
 import {
-    emitStreamProgress,
-    parseDocument,
+    DataRuntime,
+    DataToolkit,
+    defaultDataRuntime,
     ProgressData,
-    ProgressEventTarget,
-    readBytes,
-    streamFromProgress
+    ProgressEventTarget
 } from './utility';
 
 export enum BodyRequestMethods {
@@ -80,7 +79,7 @@ export function parseBody<T>(raw: string, contentType: string): T {
 
     if (contentType.match(/html|xml/))
         try {
-            return parseDocument(raw, contentType) as T;
+            return this.parseDocument(raw, contentType) as T;
         } catch {}
 
     if (contentType.includes('text')) return raw as T;
@@ -107,26 +106,25 @@ export interface HeadResponse {
     body?: ArrayBuffer;
 }
 
-export type HTTPRuntime = Partial<
-    Pick<
-        typeof globalThis,
-        'EventTarget' | 'XMLHttpRequest' | 'Headers' | 'Blob' | 'fetch'
-    > & {
-        ReadableStream: typeof ReadableStream;
-    }
->;
-
-export const defaultRuntime: HTTPRuntime = {
+export type HTTPRuntime = DataRuntime &
+    Partial<
+        Pick<
+            typeof globalThis,
+            'EventTarget' | 'XMLHttpRequest' | 'Headers' | 'fetch'
+        >
+    >;
+export const defaultHTTPRuntime: HTTPRuntime = {
+    ...defaultDataRuntime,
     EventTarget: globalThis.EventTarget,
     XMLHttpRequest: globalThis.XMLHttpRequest,
     Headers: globalThis.Headers,
-    Blob: globalThis.Blob,
-    ReadableStream,
     fetch: globalThis.fetch
 };
 
-export class HTTPToolkit {
-    constructor(public runtime: HTTPRuntime = defaultRuntime) {}
+export class HTTPToolkit extends DataToolkit {
+    constructor(public runtime: HTTPRuntime = defaultHTTPRuntime) {
+        super(runtime);
+    }
 
     requestXHR = <B>({
         method = 'GET',
@@ -136,15 +134,13 @@ export class HTTPToolkit {
         signal,
         ...rest
     }: Request): RequestResult<B> => {
-        const { XMLHttpRequest, Headers, Blob } = this.runtime;
+        const { XMLHttpRequest, Headers, Blob, ReadableStream } = this.runtime;
 
         const request = new XMLHttpRequest();
         const header = new Headers(headers);
         const bodyPromise =
-            body instanceof globalThis.ReadableStream
-                ? Array.fromAsync(
-                      ReadableStream.from(body as ReadableStreamLike)
-                  ).then(parts => new Blob(parts))
+            body instanceof ReadableStream
+                ? Array.fromAsync(body).then(parts => new Blob(parts))
                 : Promise.resolve(body);
         const abort = () => request.abort();
 
@@ -201,8 +197,8 @@ export class HTTPToolkit {
 
         return {
             response,
-            upload: streamFromProgress(request.upload),
-            download: streamFromProgress(request)
+            upload: this.streamFromProgress(request.upload),
+            download: this.streamFromProgress(request)
         };
     };
 
@@ -241,20 +237,20 @@ export class HTTPToolkit {
                     : responseType === 'arraybuffer' || responseType === 'blob'
                       ? { ...headers, Accept: 'application/octet-stream' }
                       : headers;
-        const isStream = body instanceof globalThis.ReadableStream;
+        const isStream = body instanceof ReadableStream;
         var upload: AsyncGenerator<ProgressData> | undefined;
 
         if (isStream) {
             const uploadProgress = new EventTarget();
 
             body = ReadableStream.from(
-                emitStreamProgress(
-                    ReadableStream.from(body),
+                this.emitStreamProgress(
+                    body,
                     +headers['Content-Length'],
                     uploadProgress
                 )
             );
-            upload = streamFromProgress(uploadProgress);
+            upload = this.streamFromProgress(uploadProgress);
         }
         const downloadProgress = new EventTarget();
 
@@ -269,7 +265,7 @@ export class HTTPToolkit {
         }).then(response =>
             this.parseResponse<B>(response, responseType, downloadProgress)
         );
-        const download = streamFromProgress(downloadProgress);
+        const download = this.streamFromProgress(downloadProgress);
 
         return { response, upload, download };
     };
@@ -289,7 +285,7 @@ export class HTTPToolkit {
             return { status, statusText, headers: header, body: undefined };
 
         const stream = ReadableStream.from(
-            emitStreamProgress(
+            this.emitStreamProgress(
                 ReadableStream.from(body as ReadableStreamLike),
                 +headers.get('Content-Length'),
                 downloadProgress
@@ -404,7 +400,7 @@ export class HTTPToolkit {
             ...fetchOptions,
             headers: normalizedHeaders
         });
-        const body = await readBytes(
+        const body = await this.readBytes(
             ReadableStream.from(response.body as ReadableStreamLike),
             FILE_TYPE_MAGIC_NUMBER_SIZE
         );
