@@ -21,66 +21,52 @@ export enum FileMethod {
 
 const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
 
-export class HTTPUtility {
-    constructor(
-        public runtime: {
-            Blob: typeof globalThis.Blob;
-            DOMParser: typeof globalThis.DOMParser;
-            FormData: typeof globalThis.FormData;
-            FileReader: typeof globalThis.FileReader;
-            URLSearchParams: typeof globalThis.URLSearchParams;
-            ReadableStream: typeof globalThis.ReadableStream;
-            ProgressEvent: typeof globalThis.ProgressEvent;
-        } = {
-            get Blob() {
-                return globalThis.Blob;
-            },
-            get DOMParser() {
-                return globalThis.DOMParser;
-            },
-            get FormData() {
-                return globalThis.FormData;
-            },
-            get FileReader() {
-                return globalThis.FileReader;
-            },
-            get URLSearchParams() {
-                return globalThis.URLSearchParams;
-            },
-            get ReadableStream() {
-                return globalThis.ReadableStream;
-            },
-            get ProgressEvent() {
-                return (globalThis.ProgressEvent ||= class ProgressEvent<
-                    T extends EventTarget = EventTarget
-                > extends Event {
-                    declare target: T | null;
+export function polyfillProgressEvent() {
+    return (globalThis.ProgressEvent ||= class ProgressEvent<
+        T extends EventTarget = EventTarget
+    > extends Event {
+        declare target: T | null;
 
-                    lengthComputable: boolean;
-                    total: number;
-                    loaded: number;
+        lengthComputable: boolean;
+        total: number;
+        loaded: number;
 
-                    constructor(
-                        type: string,
-                        {
-                            lengthComputable,
-                            total,
-                            loaded,
-                            ...meta
-                        }: ProgressEventInit = {}
-                    ) {
-                        super(type, meta);
+        constructor(
+            type: string,
+            { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
+        ) {
+            super(type, meta);
 
-                        this.lengthComputable = lengthComputable;
-                        this.total = total;
-                        this.loaded = loaded;
-                    }
-                });
-            }
+            this.lengthComputable = lengthComputable;
+            this.total = total;
+            this.loaded = loaded;
         }
-    ) {}
+    });
+}
 
-    polyfillProgressEvent = () => this.runtime.ProgressEvent;
+export type UtilityRuntime = Partial<
+    Pick<
+        typeof globalThis,
+        | 'Blob'
+        | 'DOMParser'
+        | 'FormData'
+        | 'FileReader'
+        | 'URLSearchParams'
+        | 'ProgressEvent'
+    >
+>;
+
+export const defaultUtilityRuntime: UtilityRuntime = {
+    Blob: globalThis.Blob,
+    DOMParser: globalThis.DOMParser,
+    FormData: globalThis.FormData,
+    FileReader: globalThis.FileReader,
+    URLSearchParams: globalThis.URLSearchParams,
+    ProgressEvent: globalThis.ProgressEvent
+};
+
+export class HTTPUtility {
+    constructor(public runtime: UtilityRuntime = defaultUtilityRuntime) {}
 
     parseDocument = async (text: string, contentType = '') => {
         const [type] = contentType?.split(';') || [];
@@ -116,7 +102,7 @@ export class HTTPUtility {
         data: string | URLSearchParams | FormData;
     } => {
         const { FormData, URLSearchParams } = this.runtime;
-        let contentType: string;
+        var contentType: string;
 
         if (!(root instanceof HTMLFormElement))
             return {
@@ -162,8 +148,7 @@ export class HTTPUtility {
         data: T | BodyInit;
         contentType?: string;
     } => {
-        const { URLSearchParams, FormData, Blob, ReadableStream } =
-            this.runtime;
+        const { URLSearchParams, FormData } = this.runtime;
         const [type] = contentType?.split(';') || [];
 
         switch (type) {
@@ -204,8 +189,8 @@ export class HTTPUtility {
                 isTypedArray(data) ||
                 data instanceof ArrayBuffer ||
                 data instanceof DataView ||
-                data instanceof Blob ||
-                data instanceof ReadableStream
+                data instanceof globalThis.Blob ||
+                data instanceof globalThis.ReadableStream
             )
                 return {
                     contentType: 'application/octet-stream',
@@ -287,14 +272,16 @@ export class HTTPUtility {
         const self = this;
 
         return (async function* () {
-            let loaded = 0;
+            var loaded = 0;
+            const ProgressEvent =
+                self.runtime.ProgressEvent ?? polyfillProgressEvent();
 
             for await (const chunk of stream) {
                 yield chunk;
 
                 loaded += (chunk as Uint8Array).byteLength;
 
-                const event = new self.runtime.ProgressEvent('progress', {
+                const event = new ProgressEvent('progress', {
                     lengthComputable: isNaN(total),
                     loaded,
                     total
@@ -341,7 +328,6 @@ export class HTTPUtility {
 
 const _defaultUtility = new HTTPUtility();
 
-export const polyfillProgressEvent = _defaultUtility.polyfillProgressEvent;
 export const parseDocument = _defaultUtility.parseDocument;
 export const makeFormData = _defaultUtility.makeFormData;
 export const serializeNode = _defaultUtility.serializeNode;
