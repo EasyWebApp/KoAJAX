@@ -1,6 +1,8 @@
-import { Blob, ReadableStream } from './XMLHttpRequest';
+import { Blob, mockHTTPRuntime, ReadableStream } from './XMLHttpRequest';
 
-import { request, requestFetch, requestHead, requestXHR } from '../source';
+import { defaultHTTPRuntime, HTTPToolkit } from '../source';
+
+const { requestFetch, requestXHR } = new HTTPToolkit(mockHTTPRuntime);
 
 describe('HTTP Request', () => {
     it('should return a Promise & an Observable with fetch()', async () => {
@@ -82,38 +84,34 @@ describe('HTTP Request', () => {
 });
 
 describe('HEAD simulation fallback', () => {
+    const createToolkit = (fetch: typeof globalThis.fetch) =>
+        new HTTPToolkit({ ...mockHTTPRuntime, fetch });
+
     it('should return headers when HEAD succeeds', async () => {
         const mockHeaders = { 'Content-Type': 'text/html' };
-        const { fetch } = globalThis;
 
-        globalThis.fetch = async () =>
-            ({
-                ok: true,
-                headers: new Headers(mockHeaders)
-            }) as unknown as Response;
+        const toolkit = createToolkit((async () => ({
+            ok: true,
+            headers: new Headers(mockHeaders)
+        })) as unknown as typeof globalThis.fetch);
 
-        try {
-            const result = await requestHead({
-                path: 'http://example.com/'
-            });
+        const result = await toolkit.requestHead({
+            path: 'http://example.com/'
+        });
 
-            expect(result.headers).toEqual(mockHeaders);
-            expect(result.body).toBeUndefined();
-        } finally {
-            globalThis.fetch = fetch;
-        }
+        expect(result.headers).toEqual(mockHeaders);
+        expect(result.body).toBeUndefined();
     });
 
     it('should fall back to Range GET when HEAD is not supported', async () => {
-        const { fetch } = globalThis,
-            mockBody = new ArrayBuffer(4100),
+        const mockBody = new ArrayBuffer(4100),
             mockHeaders = {
                 'Content-Type': 'application/octet-stream',
                 'Content-Range': 'bytes 0-4099/102400'
             };
         let callCount = 0;
 
-        globalThis.fetch = async () => {
+        const toolkit = createToolkit((async () => {
             callCount++;
 
             if (callCount === 1)
@@ -130,26 +128,21 @@ describe('HEAD simulation fallback', () => {
                 arrayBuffer: async () => mockBody,
                 body: null
             } as unknown as Response;
-        };
+        }) as typeof globalThis.fetch);
 
-        try {
-            const result = await requestHead({
-                path: 'http://example.com/file.bin'
-            });
+        const result = await toolkit.requestHead({
+            path: 'http://example.com/file.bin'
+        });
 
-            expect(result.headers).toEqual(mockHeaders);
-            expect(result.body).toBe(mockBody);
-        } finally {
-            globalThis.fetch = fetch;
-        }
+        expect(result.headers).toEqual(mockHeaders);
+        expect(result.body).toBe(mockBody);
     });
 
     it('should fall back to plain GET when Range GET is also unsupported', async () => {
-        const { fetch } = globalThis,
-            mockHeaders = { 'Content-Type': 'application/octet-stream' };
+        const mockHeaders = { 'Content-Type': 'application/octet-stream' };
         let callCount = 0;
 
-        globalThis.fetch = async () => {
+        const toolkit = createToolkit((async () => {
             callCount++;
 
             if (callCount === 1) throw new Error('HEAD not supported');
@@ -158,46 +151,94 @@ describe('HEAD simulation fallback', () => {
 
             return {
                 headers: new Headers(mockHeaders),
-                body: new (globalThis.ReadableStream as any)({
-                    start(ctrl: any) {
-                        ctrl.close();
-                    }
+                body: new ReadableStream({
+                    start: controller => controller.close()
                 })
             } as unknown as Response;
-        };
+        }) as typeof globalThis.fetch);
 
-        try {
-            const { headers } = await requestHead({
-                path: 'http://example.com/file.bin'
-            });
+        const { headers } = await toolkit.requestHead({
+            path: 'http://example.com/file.bin'
+        });
 
-            expect(headers).toEqual(mockHeaders);
-        } finally {
-            globalThis.fetch = fetch;
-        }
+        expect(headers).toEqual(mockHeaders);
     });
 
     it('should expose HEAD simulation via request()', async () => {
         const mockHeaders = { 'Content-Type': 'text/plain' };
-        const { fetch } = globalThis;
 
-        globalThis.fetch = async () =>
-            ({
-                ok: true,
-                headers: new Headers(mockHeaders)
-            }) as unknown as Response;
+        const toolkit = createToolkit((async () => ({
+            ok: true,
+            headers: new Headers(mockHeaders)
+        })) as unknown as typeof globalThis.fetch);
 
-        try {
-            const { response } = request({
-                method: 'HEAD',
-                path: 'http://example.com/'
-            });
-            const result = await response;
+        const { response } = toolkit.request({
+            method: 'HEAD',
+            path: 'http://example.com/'
+        });
+        const result = await response;
 
-            expect(result.status).toBe(204);
-            expect(result.headers).toEqual(mockHeaders);
-        } finally {
-            globalThis.fetch = fetch;
-        }
+        expect(result.status).toBe(204);
+        expect(result.headers).toEqual(mockHeaders);
+    });
+});
+
+describe('HTTPToolkit', () => {
+    it('should use injected fetch in requestFetch', async () => {
+        let fetchCalled = false;
+
+        const mockFetch = async () => {
+            fetchCalled = true;
+
+            return {
+                status: 204,
+                statusText: 'No Content',
+                headers: new Headers(),
+                body: new ReadableStream({
+                    start: controller => controller.close()
+                })
+            } as unknown as globalThis.Response;
+        };
+
+        const toolkit = new HTTPToolkit({
+            ...defaultHTTPRuntime,
+            XMLHttpRequest: undefined,
+            fetch: mockFetch as unknown as typeof globalThis.fetch
+        });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestFetch);
+
+        const { response } = toolkit.requestFetch({
+            path: 'http://example.com/test'
+        });
+        const result = await response;
+
+        expect(fetchCalled).toBe(true);
+        expect(result.status).toBe(204);
+    });
+
+    it('should use injected XMLHttpRequest in requestXHR', async () => {
+        const { XMLHttpRequest } = await import('./XMLHttpRequest');
+
+        const toolkit = new HTTPToolkit({
+            ...defaultHTTPRuntime,
+            XMLHttpRequest:
+                XMLHttpRequest as unknown as typeof globalThis.XMLHttpRequest,
+            fetch: globalThis.fetch
+        });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestXHR);
+
+        const { response } = toolkit.requestXHR({
+            path: '/200',
+            responseType: 'json'
+        });
+
+        expect(await response).toEqual({
+            status: 200,
+            statusText: 'OK',
+            headers: { 'Content-Type': 'application/json' },
+            body: { message: 'Hello, World!' }
+        });
     });
 });

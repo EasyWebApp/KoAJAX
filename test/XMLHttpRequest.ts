@@ -2,10 +2,10 @@ import { AbortController } from 'abortcontroller-polyfill/dist/cjs-ponyfill';
 import { Blob } from 'buffer';
 import { ReadableStream } from 'web-streams-polyfill';
 
-export { Blob, ReadableStream };
+export { AbortController, Blob, ReadableStream };
 
 import '../source/polyfill';
-import { Request } from '../source';
+import { defaultHTTPRuntime, HTTPRuntime, Request } from '../source';
 
 export class XMLHttpRequest extends EventTarget {
     readyState = 0;
@@ -94,11 +94,8 @@ export class XMLHttpRequest extends EventTarget {
     }
 }
 
-global.AbortController = AbortController;
-// @ts-ignore
-global.ReadableStream = ReadableStream;
-// @ts-ignore
-// https://github.com/jsdom/jsdom/issues/2555#issuecomment-1864762292
-global.Blob = Blob;
-// @ts-ignore
-global.XMLHttpRequest = XMLHttpRequest;
+export const mockHTTPRuntime = {
+    ...defaultHTTPRuntime,
+    Blob,
+    XMLHttpRequest
+} as unknown as HTTPRuntime;

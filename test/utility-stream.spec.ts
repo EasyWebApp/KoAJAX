@@ -1,6 +1,8 @@
-import './XMLHttpRequest';
+import { Blob, mockHTTPRuntime } from './XMLHttpRequest';
 
-import { takeBytes, readBytes, makeStream } from '../source';
+import { DataToolkit } from '../source';
+
+const { takeBytes, readBytes, makeStream } = new DataToolkit(mockHTTPRuntime);
 
 describe('ReadableStream helpers', () => {
     it('makeStream should emit concatenated binary chunks in order', async () => {

@@ -3,8 +3,11 @@ on:
     push:
         tags:
             - v*
+env:
+    PUBLISH_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+
 jobs:
-    Build-and-Publish:
+    Test-Build-Publish-Deploy:
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -24,11 +27,12 @@ jobs:
               run: pnpm i --frozen-lockfile
 
             - name: Build & Publish
-              run: npm publish --access public --provenance
+              run: npm publish --access public --provenance --tag ${{ env.PUBLISH_TAG }}
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-            - name: Update document
+            - name: Deploy document
+              if: ${{ env.PUBLISH_TAG == 'latest' }}
               uses: peaceiris/actions-gh-pages@v4
               with:
                   publish_dir: ./docs

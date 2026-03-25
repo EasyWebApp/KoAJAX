@@ -1,9 +1,13 @@
-import './XMLHttpRequest';
+import { AbortController, mockHTTPRuntime } from './XMLHttpRequest';
 
-import { HTTPClient } from '../source';
+import { HTTPClient, HTTPToolkit } from '../source';
 
 describe('HTTP Client', () => {
-    const client = new HTTPClient({ responseType: 'json' });
+    const { request } = new HTTPToolkit(mockHTTPRuntime);
+    const client = new HTTPClient({
+        baseRequest: request,
+        responseType: 'json'
+    });
 
     it('should return Data while Status is less then 300', async () => {
         const { headers, body } = await client.get('/200');
