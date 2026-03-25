@@ -1,4 +1,4 @@
-import type { ReadableStream } from 'web-streams-polyfill';
+import { ReadableStream, ReadableStreamLike } from 'web-streams-polyfill';
 import { parseJSON } from 'web-utility';
 
 import {
@@ -107,36 +107,26 @@ export interface HeadResponse {
     body?: ArrayBuffer;
 }
 
+export type HTTPRuntime = Partial<
+    Pick<
+        typeof globalThis,
+        'EventTarget' | 'XMLHttpRequest' | 'Headers' | 'Blob' | 'fetch'
+    > & {
+        ReadableStream: typeof ReadableStream;
+    }
+>;
+
+export const defaultRuntime: HTTPRuntime = {
+    EventTarget: globalThis.EventTarget,
+    XMLHttpRequest: globalThis.XMLHttpRequest,
+    Headers: globalThis.Headers,
+    Blob: globalThis.Blob,
+    ReadableStream,
+    fetch: globalThis.fetch
+};
+
 export class HTTPToolkit {
-    constructor(
-        public runtime: {
-            EventTarget: typeof globalThis.EventTarget;
-            XMLHttpRequest: typeof globalThis.XMLHttpRequest | undefined;
-            Blob: typeof globalThis.Blob;
-            Headers: typeof globalThis.Headers;
-            ReadableStream: typeof globalThis.ReadableStream;
-            fetch: typeof globalThis.fetch;
-        } = {
-            get EventTarget() {
-                return globalThis.EventTarget;
-            },
-            get XMLHttpRequest() {
-                return globalThis.XMLHttpRequest;
-            },
-            get Blob() {
-                return globalThis.Blob;
-            },
-            get Headers() {
-                return globalThis.Headers;
-            },
-            get ReadableStream() {
-                return globalThis.ReadableStream;
-            },
-            get fetch() {
-                return globalThis.fetch;
-            }
-        }
-    ) {}
+    constructor(public runtime: HTTPRuntime = defaultRuntime) {}
 
     requestXHR = <B>({
         method = 'GET',
@@ -146,14 +136,15 @@ export class HTTPToolkit {
         signal,
         ...rest
     }: Request): RequestResult<B> => {
-        const { XMLHttpRequest, Headers, Blob, ReadableStream } = this.runtime;
+        const { XMLHttpRequest, Headers, Blob } = this.runtime;
+
         const request = new XMLHttpRequest();
         const header = new Headers(headers);
         const bodyPromise =
-            body instanceof ReadableStream
-                ? Array.fromAsync(body as ReadableStream<unknown>).then(
-                      parts => new Blob(parts)
-                  )
+            body instanceof globalThis.ReadableStream
+                ? Array.fromAsync(
+                      ReadableStream.from(body as ReadableStreamLike)
+                  ).then(parts => new Blob(parts))
                 : Promise.resolve(body);
         const abort = () => request.abort();
 
@@ -225,14 +216,15 @@ export class HTTPToolkit {
         timeout,
         responseType
     }: Request): RequestResult<B> => {
-        const { EventTarget, ReadableStream, fetch } = this.runtime;
+        const { EventTarget, Headers, ReadableStream, fetch } = this.runtime;
         const signals = [
             signal,
             timeout && AbortSignal.timeout(timeout)
         ].filter(Boolean);
+
         headers =
-            headers instanceof this.runtime.Headers
-                ? Object.fromEntries((headers as globalThis.Headers).entries())
+            headers instanceof Headers
+                ? Object.fromEntries(headers.entries())
                 : headers instanceof Array
                   ? Object.fromEntries(headers)
                   : headers;
@@ -249,20 +241,19 @@ export class HTTPToolkit {
                     : responseType === 'arraybuffer' || responseType === 'blob'
                       ? { ...headers, Accept: 'application/octet-stream' }
                       : headers;
-        const isStream = body instanceof ReadableStream;
-        let upload: AsyncGenerator<ProgressData> | undefined;
+        const isStream = body instanceof globalThis.ReadableStream;
+        var upload: AsyncGenerator<ProgressData> | undefined;
 
         if (isStream) {
             const uploadProgress = new EventTarget();
 
-            body = ReadableStream['from'](
+            body = ReadableStream.from(
                 emitStreamProgress(
-                    body as ReadableStream<Uint8Array>,
+                    ReadableStream.from(body),
                     +headers['Content-Length'],
                     uploadProgress
                 )
-            ) as ReadableStream<Uint8Array>;
-
+            );
             upload = streamFromProgress(uploadProgress);
         }
         const downloadProgress = new EventTarget();
@@ -278,11 +269,9 @@ export class HTTPToolkit {
         }).then(response =>
             this.parseResponse<B>(response, responseType, downloadProgress)
         );
-        return {
-            response,
-            upload,
-            download: streamFromProgress(downloadProgress)
-        };
+        const download = streamFromProgress(downloadProgress);
+
+        return { response, upload, download };
     };
 
     parseResponse = async <B>(
@@ -291,28 +280,26 @@ export class HTTPToolkit {
         downloadProgress: ProgressEventTarget
     ): Promise<Response<B>> => {
         const { ReadableStream } = this.runtime;
-        const stream = ReadableStream['from'](
-            emitStreamProgress(
-                body as ReadableStream<Uint8Array>,
-                +headers.get('Content-Length'),
-                downloadProgress
-            )
-        ) as ReadableStream<Uint8Array>;
 
         const contentType = headers.get('Content-Type') || '';
-
         const header = parseHeaders(
             [...headers].map(([key, value]) => `${key}: ${value}`).join('\n')
         );
-        const rBody =
-            status === 204
-                ? undefined
-                : await this.parseFetchBody<B>(
-                      stream,
-                      contentType,
-                      responseType
-                  );
+        if (status === 204 || !body)
+            return { status, statusText, headers: header, body: undefined };
 
+        const stream = ReadableStream.from(
+            emitStreamProgress(
+                ReadableStream.from(body as ReadableStreamLike),
+                +headers.get('Content-Length'),
+                downloadProgress
+            )
+        );
+        const rBody = await this.parseFetchBody<B>(
+            stream,
+            contentType,
+            responseType
+        );
         return { status, statusText, headers: header, body: rBody };
     };
 
@@ -322,6 +309,7 @@ export class HTTPToolkit {
         responseType: Request['responseType']
     ) => {
         const { Blob } = this.runtime;
+
         const blob = new Blob(await Array.fromAsync(stream), {
             type: contentType
         });
@@ -337,11 +325,10 @@ export class HTTPToolkit {
         return parseBody<B>(text, contentType);
     };
 
-    get rawRequest(): <B>(option: Request) => RequestResult<B> {
-        return typeof this.runtime.XMLHttpRequest === 'function'
+    rawRequest =
+        typeof this.runtime.XMLHttpRequest === 'function'
             ? this.requestXHR
             : this.requestFetch;
-    }
 
     /**
      * Sends a `HEAD` request, falling back to simulation when the server does
@@ -359,25 +346,25 @@ export class HTTPToolkit {
         timeout,
         signal
     }: Request): Promise<HeadResponse> => {
-        const { fetch } = this.runtime;
+        const { Headers, fetch } = this.runtime;
+
         const normalizedHeaders: Record<string, string> = !headers
             ? {}
-            : headers instanceof this.runtime.Headers
-              ? Object.fromEntries(headers as globalThis.Headers)
+            : headers instanceof Headers
+              ? Object.fromEntries(headers)
               : Array.isArray(headers)
                 ? Object.fromEntries(headers)
                 : (headers as Record<string, string>);
-
         const signals = [
             signal,
             timeout && AbortSignal.timeout(timeout)
         ].filter(Boolean) as AbortSignal[];
 
-        const fetchOptions: globalThis.RequestInit = {
+        const fetchOptions: RequestInit = {
             credentials: withCredentials ? 'include' : 'omit',
             signal: signals[1] ? AbortSignal.any(signals) : signals[0]
         };
-        const toHeaders = (raw: globalThis.Headers) =>
+        const toHeaders = (raw: Headers) =>
             parseHeaders([...raw].map(([k, v]) => `${k}: ${v}`).join('\n'));
 
         // Tier 1: fetch() HEAD
@@ -413,12 +400,12 @@ export class HTTPToolkit {
         }
 
         // Tier 3: plain GET – read magic-number bytes then cancel the body stream
-        const response = await fetch(path + '', {
+        const response = await fetch(path, {
             ...fetchOptions,
             headers: normalizedHeaders
         });
         const body = await readBytes(
-            response.body as ReadableStream<Uint8Array>,
+            ReadableStream.from(response.body as ReadableStreamLike),
             FILE_TYPE_MAGIC_NUMBER_SIZE
         );
         return { headers: toHeaders(response.headers), body };
@@ -429,10 +416,7 @@ export class HTTPToolkit {
      * servers that do not support the `HEAD` method.
      */
     request = <B>(option: Request): RequestResult<B> => {
-        if (option.method !== 'HEAD') {
-            const rawReq = this.rawRequest;
-            return rawReq<B>(option);
-        }
+        if (option.method !== 'HEAD') return this.rawRequest<B>(option);
 
         const response = this.requestHead(option).then(
             ({ headers, body }) =>
@@ -450,13 +434,12 @@ export class HTTPToolkit {
     };
 }
 
-const _defaultToolkit = new HTTPToolkit();
-
-export const requestXHR = _defaultToolkit.requestXHR;
-export const requestFetch = _defaultToolkit.requestFetch;
-export const parseResponse = _defaultToolkit.parseResponse;
-export const parseFetchBody = _defaultToolkit.parseFetchBody;
-export const rawRequest = <B>(option: Request): RequestResult<B> =>
-    _defaultToolkit.rawRequest(option);
-export const requestHead = _defaultToolkit.requestHead;
-export const request = _defaultToolkit.request;
+export const {
+    requestXHR,
+    requestFetch,
+    parseResponse,
+    parseFetchBody,
+    rawRequest,
+    requestHead,
+    request
+} = new HTTPToolkit();
