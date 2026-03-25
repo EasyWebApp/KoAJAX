@@ -87,7 +87,35 @@ npx tsx index.ts
 
 ### Non-polyfillable runtimes
 
-1. https://github.com/idea2app/KoAJAX-Taro-adapter
+#### Taro (Mini Program, Open Harmony, etc.)
+
+##### 1. Install Polyfill
+
+```shell
+npm install event-target-shim taro-fetch-polyfill
+```
+
+##### 2. Inject Runtime
+
+Following Example comes from https://github.com/idea2app/Taro-Vant-MobX-ts/blob/70f33be5b2365b8126ed93663905329eae25fbf0/src/store/service.ts
+
+```typescript
+import { Event, EventTarget } from 'event-target-shim';
+import { defaultHTTPRuntime, HTTPToolkit } from 'koajax';
+import { Blob, Headers, ReadableStream, fetch } from 'taro-fetch-polyfill';
+
+const { request } = new HTTPToolkit({
+    ...defaultHTTPRuntime,
+    Event: Event as typeof globalThis.Event,
+    EventTarget: EventTarget as typeof globalThis.EventTarget,
+    Headers,
+    Blob,
+    ReadableStream,
+    fetch: fetch as typeof globalThis.fetch
+});
+
+export const httpClient = new HTTPClient({ baseRequest: request });
+```
 
 ## Example
 
