@@ -22,28 +22,6 @@ export enum FileMethod {
 
 const DataURI = /^data:(.+?\/(.+?))?(;base64)?,([\s\S]+)/;
 
-export class ProgressEvent<T extends EventTarget = EventTarget> extends Event {
-    declare target: T | null;
-
-    lengthComputable: boolean;
-    total: number;
-    loaded: number;
-
-    constructor(
-        type: string,
-        { lengthComputable, total, loaded, ...meta }: ProgressEventInit = {}
-    ) {
-        super(type, meta);
-
-        this.lengthComputable = lengthComputable;
-        this.total = total;
-        this.loaded = loaded;
-    }
-}
-
-export const polyfillProgressEvent = () =>
-    (globalThis.ProgressEvent ||= ProgressEvent);
-
 export type DataRuntime = Partial<
     Pick<
         typeof globalThis,
@@ -56,6 +34,7 @@ export type DataRuntime = Partial<
         | 'URLSearchParams'
         | 'Blob'
         | 'FileReader'
+        | 'Event'
         | 'ProgressEvent'
     > & { ReadableStream: typeof ReadableStream }
 >;
@@ -70,12 +49,43 @@ export const defaultDataRuntime: DataRuntime = {
     URLSearchParams: globalThis.URLSearchParams,
     Blob: globalThis.Blob,
     FileReader: globalThis.FileReader,
-    ProgressEvent: globalThis.ProgressEvent || ProgressEvent,
+    Event: globalThis.Event,
+    ProgressEvent: globalThis.ProgressEvent,
     ReadableStream
 };
 
 export class DataToolkit {
-    constructor(public runtime: DataRuntime = defaultDataRuntime) {}
+    constructor(public runtime: DataRuntime = defaultDataRuntime) {
+        if (runtime.Event)
+            this.runtime.ProgressEvent = this.polyfillProgressEvent();
+    }
+
+    polyfillProgressEvent = () =>
+        (globalThis.ProgressEvent ||= class ProgressEvent<
+            T extends EventTarget = EventTarget
+        > extends this.runtime.Event {
+            declare target: T | null;
+
+            lengthComputable: boolean;
+            total: number;
+            loaded: number;
+
+            constructor(
+                type: string,
+                {
+                    lengthComputable,
+                    total,
+                    loaded,
+                    ...meta
+                }: ProgressEventInit = {}
+            ) {
+                super(type, meta);
+
+                this.lengthComputable = lengthComputable;
+                this.total = total;
+                this.loaded = loaded;
+            }
+        });
 
     parseDocument = async (text: string, contentType = '') => {
         const { DOMParser } = this.runtime;
@@ -339,6 +349,7 @@ export class DataToolkit {
 }
 
 export const {
+    polyfillProgressEvent,
     parseDocument,
     makeFormData,
     serializeNode,
