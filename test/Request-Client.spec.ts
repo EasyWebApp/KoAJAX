@@ -1,6 +1,12 @@
 import { Blob, ReadableStream } from './XMLHttpRequest';
 
-import { request, requestFetch, requestHead, requestXHR } from '../source';
+import {
+    HTTPToolkit,
+    request,
+    requestFetch,
+    requestHead,
+    requestXHR
+} from '../source';
 
 describe('HTTP Request', () => {
     it('should return a Promise & an Observable with fetch()', async () => {
@@ -199,5 +205,92 @@ describe('HEAD simulation fallback', () => {
         } finally {
             globalThis.fetch = fetch;
         }
+    });
+});
+
+describe('HTTPToolkit', () => {
+    it('should use injected fetch in requestFetch', async () => {
+        let fetchCalled = false;
+        const mockFetch = async () => {
+            fetchCalled = true;
+            return {
+                status: 204,
+                statusText: 'No Content',
+                headers: new Headers(),
+                body: null
+            } as unknown as globalThis.Response;
+        };
+
+        const toolkit = new HTTPToolkit({
+            EventTarget: globalThis.EventTarget,
+            XMLHttpRequest: undefined,
+            Blob: globalThis.Blob,
+            Headers: globalThis.Headers,
+            ReadableStream: globalThis.ReadableStream,
+            fetch: mockFetch as unknown as typeof globalThis.fetch
+        });
+
+        const { response } = toolkit.requestFetch({
+            path: 'http://example.com/test'
+        });
+
+        const result = await response;
+
+        expect(fetchCalled).toBe(true);
+        expect(result.status).toBe(204);
+    });
+
+    it('should use injected XMLHttpRequest in requestXHR', async () => {
+        const { XMLHttpRequest } = await import('./XMLHttpRequest');
+
+        const toolkit = new HTTPToolkit({
+            EventTarget: globalThis.EventTarget,
+            XMLHttpRequest:
+                XMLHttpRequest as unknown as typeof globalThis.XMLHttpRequest,
+            Blob: globalThis.Blob,
+            Headers: globalThis.Headers,
+            ReadableStream: globalThis.ReadableStream,
+            fetch: globalThis.fetch
+        });
+
+        const { response } = toolkit.requestXHR({
+            path: '/200',
+            responseType: 'json'
+        });
+
+        expect(await response).toEqual({
+            status: 200,
+            statusText: 'OK',
+            headers: { 'Content-Type': 'application/json' },
+            body: { message: 'Hello, World!' }
+        });
+    });
+
+    it('rawRequest should use requestXHR when XMLHttpRequest is available', () => {
+        const { XMLHttpRequest } = require('./XMLHttpRequest');
+
+        const toolkit = new HTTPToolkit({
+            EventTarget: globalThis.EventTarget,
+            XMLHttpRequest,
+            Blob: globalThis.Blob,
+            Headers: globalThis.Headers,
+            ReadableStream: globalThis.ReadableStream,
+            fetch: globalThis.fetch
+        });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestXHR);
+    });
+
+    it('rawRequest should use requestFetch when XMLHttpRequest is unavailable', () => {
+        const toolkit = new HTTPToolkit({
+            EventTarget: globalThis.EventTarget,
+            XMLHttpRequest: undefined,
+            Blob: globalThis.Blob,
+            Headers: globalThis.Headers,
+            ReadableStream: globalThis.ReadableStream,
+            fetch: globalThis.fetch
+        });
+
+        expect(toolkit.rawRequest).toBe(toolkit.requestFetch);
     });
 });
