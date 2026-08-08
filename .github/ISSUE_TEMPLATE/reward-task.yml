@@ -4,12 +4,23 @@ title: '[Reward] '
 labels:
     - reward
 body:
+    - type: markdown
+      attributes:
+          value: This form is created from https://github.com/idea2app/GitHub-reward
+
     - type: textarea
       id: description
       attributes:
           label: Task description
       validations:
           required: true
+
+    - type: input
+      id: source
+      attributes:
+          label: Task source
+          description: URL from an External System
+          placeholder: https://example.com/task/123
 
     - type: dropdown
       id: currency

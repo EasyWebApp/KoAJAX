@@ -1,3 +1,5 @@
+import 'npm:array-unique-proposal';
+
 import { components } from 'npm:@octokit/openapi-types';
 import { $, argv, YAML } from 'npm:zx';
 
@@ -11,7 +13,8 @@ const [
     issueNumber,
     payer, // GitHub username of the payer (provided by workflow, defaults to issue creator)
     currency,
-    reward
+    reward,
+    source
 ] = argv._;
 
 interface PRMeta {
@@ -72,7 +75,11 @@ function isBotUser(login: string) {
 }
 
 // Filter out Bot users from the list
-const allUsers = [author.login, ...assignees.map(({ login }) => login)];
+const allUsers = [
+    author.login,
+    ...assignees.map(({ login }) => login)
+].uniqueBy();
+
 const users = allUsers.filter(login => !isBotUser(login));
 
 console.log(`All users: ${allUsers.join(', ')}`);
@@ -97,16 +104,23 @@ const list: Reward[] = users.map(login => ({
     payer: `@${payer}`,
     payee: `@${login}`,
     currency,
-    reward: parseFloat(averageReward)
+    reward: parseFloat(averageReward),
+    source
 }));
 const listText = YAML.stringify(list);
 
 console.log(listText);
 
+const tagName = `reward-${issueNumber}`;
+
 await $`git config user.name "github-actions[bot]"`;
 await $`git config user.email "github-actions[bot]@users.noreply.github.com"`;
-await $`git tag -a "reward-${issueNumber}" ${mergeCommitSha} -m ${listText}`;
-await $`git push origin --tags --no-verify`;
+
+await $`git tag -a ${tagName} ${mergeCommitSha} -m ${listText}`;
+await $`git push origin ${tagName} --no-verify`;
+
+await $`git config unset user.name`;
+await $`git config unset user.email`;
 
 const commentBody = `## Reward data
 

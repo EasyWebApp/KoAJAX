@@ -1,3 +1,4 @@
+import { changeMonth, formatDate, makeDateRange } from 'npm:web-utility';
 import { $, YAML } from 'npm:zx';
 
 import { Reward } from './type.ts';
@@ -7,13 +8,16 @@ $.verbose = true;
 const rawTags =
     await $`git tag --list "reward-*" --format="%(refname:short) %(creatordate:short)"`;
 
-const lastMonth = new Date();
-lastMonth.setMonth(lastMonth.getMonth() - 1);
-const lastMonthStr = lastMonth.toJSON().slice(0, 7);
-
+const [startDate, endDate] = makeDateRange(
+    formatDate(changeMonth(Date.now(), -1), 'YYYY-MM')
+);
 const rewardTags = rawTags.stdout
     .split('\n')
-    .filter(line => line.split(/\s+/)[1] >= lastMonthStr)
+    .filter(line => {
+        const thisDate = new Date(line.split(/\s+/)[1]);
+
+        return startDate <= thisDate && thisDate < endDate;
+    })
     .map(line => line.split(/\s+/)[0]);
 
 let rawYAML = '';
@@ -21,8 +25,11 @@ let rawYAML = '';
 for (const tag of rewardTags)
     rawYAML += (await $`git tag -l --format="%(contents)" ${tag}`) + '\n';
 
-if (!rawYAML.trim())
-    throw new ReferenceError('No reward data is found for the last month.');
+if (!rawYAML.trim()) {
+    console.warn('No reward data is found for the last month.');
+
+    process.exit(0);
+}
 
 const rewards = YAML.parse(rawYAML) as Reward[];
 
@@ -55,6 +62,9 @@ await $`git config user.name "github-actions[bot]"`;
 await $`git config user.email "github-actions[bot]@users.noreply.github.com"`;
 
 await $`git tag -a ${tagName} $(git rev-parse HEAD) -m ${summaryText}`;
-await $`git push origin --tags --no-verify`;
+await $`git push origin ${tagName} --no-verify`;
+
+await $`git config unset user.name`;
+await $`git config unset user.email`;
 
 await $`gh release create ${tagName} --notes ${summaryText}`;

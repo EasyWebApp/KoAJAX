@@ -4,4 +4,5 @@ export interface Reward {
     payee: string;
     currency: string;
     reward: number;
+    source?: string;
 }
