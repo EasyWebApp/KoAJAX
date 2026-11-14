@@ -60,15 +60,20 @@ export class DataToolkit {
             this.runtime.ProgressEvent = this.polyfillProgressEvent();
     }
 
-    polyfillProgressEvent = () =>
-        (globalThis.ProgressEvent ||= class ProgressEvent<
+    polyfillProgressEvent = () => {
+        const { Event } = this.runtime;
+
+        if (!Event)
+            throw new ReferenceError('Event is not available in runtime');
+
+        return (globalThis.ProgressEvent ||= class ProgressEvent<
             T extends EventTarget = EventTarget
-        > extends this.runtime.Event {
+        > extends Event {
             declare target: T | null;
 
-            lengthComputable: boolean;
-            total: number;
-            loaded: number;
+            lengthComputable = false;
+            total = 0;
+            loaded = 0;
 
             constructor(
                 type: string,
@@ -81,14 +86,18 @@ export class DataToolkit {
             ) {
                 super(type, meta);
 
-                this.lengthComputable = lengthComputable;
-                this.total = total;
-                this.loaded = loaded;
+                this.lengthComputable = lengthComputable ?? false;
+                this.total = total ?? 0;
+                this.loaded = loaded ?? 0;
             }
         });
+    };
 
     parseDocument = async (text: string, contentType = '') => {
         const { DOMParser } = this.runtime;
+
+        if (!DOMParser)
+            throw new ReferenceError('DOMParser is not available in runtime');
 
         const [type] = contentType?.split(';') || [];
 
@@ -98,8 +107,11 @@ export class DataToolkit {
         );
     };
 
-    makeFormData = (data: Record<string, any>) => {
+    makeFormData = (data: object) => {
         const { FormData } = this.runtime;
+
+        if (!FormData)
+            throw new ReferenceError('FormData is not available in runtime');
 
         const formData = new FormData();
 
@@ -125,6 +137,15 @@ export class DataToolkit {
     } => {
         const { URLSearchParams, FormData, Document, HTMLElement, SVGElement } =
             this.runtime;
+        if (
+            !URLSearchParams ||
+            !FormData ||
+            !Document ||
+            !HTMLElement ||
+            !SVGElement ||
+            !HTMLFormElement
+        )
+            throw new ReferenceError('DOM runtime is missing required APIs');
 
         var contentType: string;
 
@@ -179,11 +200,19 @@ export class DataToolkit {
 
         switch (type) {
             case 'application/x-www-form-urlencoded':
+                if (!URLSearchParams)
+                    throw new ReferenceError(
+                        'URLSearchParams is not available in runtime'
+                    );
                 return {
                     contentType,
                     data: new URLSearchParams(data as Record<string, any>)
                 };
             case 'multipart/form-data':
+                if (typeof data !== 'object' || data === null)
+                    throw new TypeError(
+                        'Multipart data must be a non-null object'
+                    );
                 return { data: this.makeFormData(data) };
             case 'application/json':
                 return { contentType, data: JSON.stringify(data) };
@@ -195,7 +224,7 @@ export class DataToolkit {
         if (type) return { data, contentType };
 
         try {
-            if (data instanceof URLSearchParams)
+            if (URLSearchParams && data instanceof URLSearchParams)
                 return {
                     contentType: 'application/x-www-form-urlencoded',
                     data
@@ -203,11 +232,11 @@ export class DataToolkit {
         } catch {}
 
         try {
-            if (data instanceof FormData) return { data };
+            if (FormData && data instanceof FormData) return { data };
         } catch {}
 
         try {
-            if (data instanceof Node) return this.serializeNode(data);
+            if (Node && data instanceof Node) return this.serializeNode(data);
         } catch {}
 
         try {
@@ -215,8 +244,8 @@ export class DataToolkit {
                 isTypedArray(data) ||
                 data instanceof ArrayBuffer ||
                 data instanceof DataView ||
-                data instanceof Blob ||
-                data instanceof ReadableStream
+                (Blob && data instanceof Blob) ||
+                (ReadableStream && data instanceof ReadableStream)
             )
                 return {
                     contentType: 'application/octet-stream',
@@ -251,8 +280,11 @@ export class DataToolkit {
             if (total >= limit) break;
         }
     }
+
     readBytes = async (stream: AsyncIterable<Uint8Array>, limit = Infinity) => {
         const { Blob } = this.runtime;
+
+        if (!Blob) throw new ReferenceError('Blob is not available in runtime');
 
         const chunks = await Array.fromAsync(this.takeBytes(stream, limit));
 
@@ -262,9 +294,9 @@ export class DataToolkit {
     makeStream = (...chunks: BlobPart[]) => {
         const { Blob } = this.runtime;
 
-        return new Blob(
-            chunks as ArrayBuffer[]
-        ).stream() as ReadableStream<Uint8Array>;
+        if (!Blob) throw new ReferenceError('Blob is not available in runtime');
+
+        return new Blob(chunks).stream() as ReadableStream<Uint8Array>;
     };
 
     streamFromProgress = <T extends ProgressEventTarget>(target: T) =>
@@ -275,12 +307,15 @@ export class DataToolkit {
 
                     if (loaded >= total) complete();
                 };
+                const handleError = (event: Event) =>
+                    error(event as ProgressEvent<T>);
+
                 target.addEventListener('progress', handleProgress);
-                target.addEventListener('error', error);
+                target.addEventListener('error', handleError);
 
                 return () => {
                     target.removeEventListener('progress', handleProgress);
-                    target.removeEventListener('error', error);
+                    target.removeEventListener('error', handleError);
                 };
             }
         );
@@ -292,6 +327,10 @@ export class DataToolkit {
     ): AsyncGenerator<Uint8Array> => {
         const { ProgressEvent } = this.runtime;
 
+        if (!ProgressEvent)
+            throw new ReferenceError(
+                'ProgressEvent is not available in runtime'
+            );
         return (async function* () {
             var loaded = 0;
 
@@ -317,11 +356,17 @@ export class DataToolkit {
     ) => {
         const { FileReader } = this.runtime;
 
+        if (!FileReader)
+            throw new ReferenceError('FileReader is not available in runtime');
+
         const reader = new FileReader();
         const result = new Promise<string | ArrayBuffer>((resolve, reject) => {
             reader.onerror = reject;
-            reader.onload = () => resolve(reader.result);
-
+            reader.onload = () => {
+                if (reader.result === null)
+                    reject(new Error('FileReader returned no result'));
+                else resolve(reader.result);
+            };
             reader[FileMethod[method]](file, encoding);
         });
         return { progress: this.streamFromProgress(reader), result };
@@ -333,9 +378,7 @@ export class DataToolkit {
      * @return  Base64 encoded data
      */
     encodeBase64 = async (raw: string | Blob) => {
-        const { Blob } = this.runtime;
-
-        if (raw instanceof Blob) {
+        if (typeof raw !== 'string') {
             const text = await this.readAs(raw, 'dataURL').result;
 
             return (DataURI.exec(text as string) || '')[4];

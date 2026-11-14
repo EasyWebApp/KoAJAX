@@ -1,6 +1,9 @@
+import { describe, it } from 'node:test';
+import expect from 'expect';
+
 import { AbortController, mockHTTPRuntime } from './XMLHttpRequest';
 
-import { HTTPClient, HTTPToolkit } from '../source';
+import { HTTPClient, HTTPError, HTTPToolkit } from '../source';
 
 describe('HTTP Client', () => {
     const { request } = new HTTPToolkit(mockHTTPRuntime);
@@ -20,6 +23,8 @@ describe('HTTP Client', () => {
         try {
             await client.get('/404');
         } catch (error) {
+            if (!(error instanceof HTTPError)) throw error;
+
             expect({ ...error }).toEqual({
                 request: {
                     method: 'GET',
@@ -66,6 +71,8 @@ describe('HTTP Client', () => {
         try {
             await client.get('/200', {}, { signal: controller.signal });
         } catch (error) {
+            if (!(error instanceof Error)) throw error;
+
             expect(error.message).toBe('signal is aborted without reason');
         }
     });

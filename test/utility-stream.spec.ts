@@ -1,3 +1,6 @@
+import { describe, it } from 'node:test';
+import expect from 'expect';
+
 import { Blob, mockHTTPRuntime } from './XMLHttpRequest';
 
 import { DataToolkit } from '../source';

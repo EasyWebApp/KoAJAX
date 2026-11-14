@@ -1,3 +1,6 @@
+import { describe, it } from 'node:test';
+import expect from 'expect';
+
 import { Stack } from '../source';
 
 describe('Stack', () => {
@@ -34,6 +37,8 @@ describe('Stack', () => {
                 try {
                     await next();
                 } catch (error) {
+                    if (!(error instanceof Error)) throw error;
+
                     context.error = error;
                 }
             },
