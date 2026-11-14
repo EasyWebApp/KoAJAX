@@ -1,12 +1,12 @@
 {
     "compilerOptions": {
         "module": "ESNext",
-        "moduleResolution": "Bundler",
+        "moduleResolution": "bundler",
         "esModuleInterop": true,
-        "downlevelIteration": true,
         "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "declaration": true,
         "skipLibCheck": true,
+        "rootDir": ".",
         "outDir": "dist/"
     },
     "include": ["source/**/*"],

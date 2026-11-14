@@ -6,5 +6,6 @@ allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true
   core-js: true
+  esbuild: true
   lmdb: true
   msgpackr-extract: true

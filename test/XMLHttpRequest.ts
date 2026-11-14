@@ -13,8 +13,8 @@ export class XMLHttpRequest extends EventTarget {
     onreadystatechange?: () => any;
     onerror?: () => any;
 
-    responseURL: string;
-    responseType: XMLHttpRequestResponseType;
+    responseURL = '';
+    responseType: XMLHttpRequestResponseType = '';
 
     #updateReadyState(state: number) {
         this.readyState = state;
@@ -33,10 +33,21 @@ export class XMLHttpRequest extends EventTarget {
 
     upload = new EventTarget();
 
-    status: number;
-    statusText: string;
-    responseText: string;
+    status = 0;
+    statusText = '';
+    #responseText = '';
     response: any;
+
+    get responseText() {
+        if (this.responseType && this.responseType !== 'text')
+            throw new DOMException('InvalidStateError');
+
+        return this.#responseText;
+    }
+
+    set responseText(value: string) {
+        this.#responseText = value;
+    }
 
     send(body: Request['body']) {
         setTimeout(() => this.#updateReadyState(2));
@@ -63,8 +74,13 @@ export class XMLHttpRequest extends EventTarget {
                     typeof body === 'string'
                         ? JSON.parse(body)
                         : body instanceof Blob
-                          ? await body.text()
+                          ? JSON.parse(await body.text())
                           : body;
+                break;
+            }
+            case 202: {
+                this.statusText = 'Accepted';
+                this.response = { timestamp: '2024-01-02' };
                 break;
             }
             case 404: {
@@ -72,11 +88,15 @@ export class XMLHttpRequest extends EventTarget {
                 this.response = { message: 'Hello, Error!' };
             }
         }
+        const responseText = JSON.stringify(this.response);
 
-        if (this.responseType === 'json')
-            this.responseText = JSON.stringify(this.response);
-        else this.response = JSON.stringify(this.response);
+        if (this.responseType === 'json') this.responseText = responseText;
+        else {
+            this.response = responseText;
 
+            if (!this.responseType || this.responseType === 'text')
+                this.responseText = responseText;
+        }
         this.#updateReadyState(4);
     }
 

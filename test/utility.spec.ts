@@ -1,12 +1,33 @@
+import { describe, it } from 'node:test';
+import expect from 'expect';
+
 import {
     encodeBase64,
+    HTTPToolkit,
     makeFormData,
+    normalizeHeaders,
     parseHeaders,
     readAs,
     serializeNode
 } from '../source';
 
 describe('HTTP utility', () => {
+    describe('Normalize Headers', () => {
+        it('should normalize Headers and tuple arrays', () => {
+            const toolkit = new HTTPToolkit();
+
+            expect(
+                toolkit.normalizeHeaders(
+                    new Headers([['Content-Type', 'application/json']])
+                )
+            ).toEqual({ 'content-type': 'application/json' });
+
+            expect(normalizeHeaders([['Accept', 'application/json']])).toEqual({
+                Accept: 'application/json'
+            });
+        });
+    });
+
     describe('Parse Headers', () => {
         it('should parse Link header to Object', () => {
             const meta = parseHeaders(

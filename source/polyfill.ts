@@ -28,6 +28,6 @@ export async function polyfill(origin = 'http://127.0.0.1') {
         'Blob',
         'XMLHttpRequest',
         'FileReader'
-    ])
-        globalThis[key] ||= window[key];
+    ] as const)
+        if (!globalThis[key]) Reflect.set(globalThis, key, window[key]);
 }

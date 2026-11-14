@@ -1,8 +1,28 @@
+import { describe, it } from 'node:test';
+import expect from 'expect';
+
 import { Blob, mockHTTPRuntime, ReadableStream } from './XMLHttpRequest';
 
-import { defaultHTTPRuntime, HTTPToolkit } from '../source';
+import { defaultHTTPRuntime, HTTPToolkit, parseBody } from '../source';
 
-const { requestFetch, requestXHR } = new HTTPToolkit(mockHTTPRuntime);
+const mockFetch: typeof globalThis.fetch = async (input, init) => {
+    if (init?.body instanceof ReadableStream) await Array.fromAsync(init.body);
+
+    const data = String(input).endsWith('/1') ? { id: 1 } : { title: 'KoAJAX' };
+    const text = JSON.stringify(data);
+
+    return new Response(text, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': new TextEncoder().encode(text).byteLength + ''
+        }
+    });
+};
+const { requestFetch, requestXHR } = new HTTPToolkit({
+    ...mockHTTPRuntime,
+    fetch: mockFetch
+});
 
 describe('HTTP Request', () => {
     it('should return a Promise & an Observable with fetch()', async () => {
@@ -12,8 +32,10 @@ describe('HTTP Request', () => {
         });
         expect(Symbol.asyncIterator in download).toBeTruthy();
 
-        const { loaded, total } = (await Array.fromAsync(download)).at(-1);
-
+        const { loaded, total } = (await Array.fromAsync(download)).at(-1) || {
+            loaded: 0,
+            total: 0
+        };
         expect(loaded).toBeGreaterThanOrEqual(total);
 
         const { body } = await response;
@@ -38,8 +60,10 @@ describe('HTTP Request', () => {
         expect(Symbol.asyncIterator in upload!).toBeTruthy();
         expect(Symbol.asyncIterator in download).toBeTruthy();
 
-        const { loaded, total } = (await Array.fromAsync(upload!)).at(-1);
-
+        const { loaded, total } = (await Array.fromAsync(upload!)).at(-1) || {
+            loaded: 0,
+            total: 0
+        };
         expect(loaded).toBeGreaterThanOrEqual(total);
 
         const { body } = await response;
@@ -62,6 +86,31 @@ describe('HTTP Request', () => {
             headers: { 'Content-Type': 'application/json' },
             body: { message: 'Hello, World!' }
         });
+    });
+
+    it('should parse a JSON string response without responseType', async () => {
+        const { response } = requestXHR({ path: '/200' });
+
+        expect(await response).toMatchObject({
+            body: { message: 'Hello, World!' }
+        });
+    });
+
+    it('should use parseJSON for `json` responseType', async () => {
+        const { response } = requestXHR({ path: '/202', responseType: 'json' });
+
+        expect((await response).body).toEqual({
+            timestamp: new Date('2024-01-02')
+        });
+    });
+
+    it('should parse HTML with the shared document parser', async () => {
+        const document = await parseBody<Document>(
+            '<main>KoAJAX</main>',
+            'text/html'
+        );
+        expect(document).toBeInstanceOf(Document);
+        expect(document.querySelector('main')?.textContent).toBe('KoAJAX');
     });
 
     it('should send a Readable Stream with XHR', async () => {

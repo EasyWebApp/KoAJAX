@@ -5,7 +5,8 @@ import {
     RequestOptions,
     request,
     BodyRequestMethods,
-    HTTPError
+    HTTPError,
+    normalizeHeaders
 } from './HTTPRequest';
 import { ProgressData, serialize } from './utility';
 
@@ -68,14 +69,20 @@ export class HTTPClient<T extends Context> extends Stack<T> {
     }
 
     defaultWare: Middleware<T> = async ({ request, response }, next) => {
-        const { method = 'GET', headers = {}, body } = request;
+        const { method = 'GET', body } = request;
+        const headers = normalizeHeaders(request.headers);
+        request.headers = headers;
 
         if (method in BodyRequestMethods && body && typeof body === 'object') {
+            const contentTypeKey = Object.keys(headers).find(
+                key => key.toLowerCase() === 'content-type'
+            );
             const { contentType, data } = serialize(
                 body,
-                headers['Content-Type']
+                contentTypeKey ? headers[contentTypeKey] : undefined
             );
-            if (contentType) headers['Content-Type'] = contentType;
+            if (contentType)
+                headers[contentTypeKey || 'Content-Type'] = contentType;
             request.body = data;
         }
         await next();
@@ -92,7 +99,7 @@ export class HTTPClient<T extends Context> extends Stack<T> {
 
     async request<B>(data: T['request']): Promise<Response<B>> {
         const context = {
-            request: { ...data, headers: { ...data.headers } },
+            request: { ...data, headers: normalizeHeaders(data.headers) },
             response: {}
         } as T;
 
@@ -211,6 +218,8 @@ export class HTTPClient<T extends Context> extends Stack<T> {
                 { ...headers, Range: `bytes=${i}-${j}` },
                 options
             );
+            if (!body) throw new Error('Download response is missing a body');
+
             if (status !== 206) {
                 yield { total, loaded: total, percent: 100, buffer: body };
                 break;

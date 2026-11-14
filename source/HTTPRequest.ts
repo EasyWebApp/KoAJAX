@@ -52,7 +52,7 @@ export type LinkHeader = Record<
     { URI: string; rel: string; title?: string }
 >;
 
-export const headerParser = {
+export const headerParser: Record<string, (value: string) => object> = {
     Link: (value: string): LinkHeader =>
         Object.fromEntries(
             Array.from(
@@ -61,31 +61,6 @@ export const headerParser = {
             )
         )
 };
-
-export const parseHeaders = (raw: string): Response['headers'] =>
-    Object.fromEntries(
-        Array.from(
-            raw.trim().matchAll(/^([\w-]+):\s*(.*)/gm),
-            ([_, key, value]) => {
-                key = key.replace(/(^[a-z]|-[a-z])/g, char =>
-                    char.toUpperCase()
-                );
-                return [key, headerParser[key]?.(value) ?? value];
-            }
-        )
-    );
-export function parseBody<T>(raw: string, contentType: string): T {
-    if (contentType.includes('json')) return parseJSON(raw);
-
-    if (contentType.match(/html|xml/))
-        try {
-            return this.parseDocument(raw, contentType) as T;
-        } catch {}
-
-    if (contentType.includes('text')) return raw as T;
-
-    return new TextEncoder().encode(raw).buffer as T;
-}
 
 export interface RequestResult<B> {
     response: Promise<Response<B>>;
@@ -110,11 +85,16 @@ export type HTTPRuntime = DataRuntime &
     Partial<
         Pick<
             typeof globalThis,
-            'EventTarget' | 'XMLHttpRequest' | 'Headers' | 'fetch'
+            | 'TextEncoder'
+            | 'EventTarget'
+            | 'XMLHttpRequest'
+            | 'Headers'
+            | 'fetch'
         >
     >;
 export const defaultHTTPRuntime: HTTPRuntime = {
     ...defaultDataRuntime,
+    TextEncoder: globalThis.TextEncoder,
     EventTarget: globalThis.EventTarget,
     XMLHttpRequest: globalThis.XMLHttpRequest,
     Headers: globalThis.Headers,
@@ -126,6 +106,46 @@ export class HTTPToolkit extends DataToolkit {
         super(runtime);
     }
 
+    normalizeHeaders = (headers: HeadersInit = {}): Record<string, string> => {
+        const Headers = this.runtime.Headers || globalThis.Headers;
+
+        return headers instanceof Headers
+            ? Object.fromEntries(headers)
+            : Array.isArray(headers)
+              ? Object.fromEntries(headers)
+              : { ...headers };
+    };
+
+    parseHeaders = (raw: string): Response['headers'] =>
+        Object.fromEntries(
+            Array.from(
+                raw.trim().matchAll(/^([\w-]+):\s*(.*)/gm),
+                ([_, key, value]) => {
+                    key = key.replace(/(^[a-z]|-[a-z])/g, char =>
+                        char.toUpperCase()
+                    );
+                    return [key, headerParser[key]?.(value) ?? value];
+                }
+            )
+        );
+    parseBody = async <T>(raw: string, contentType: string): Promise<T> => {
+        if (contentType.includes('json')) return parseJSON(raw);
+
+        if (contentType.match(/html|xml/))
+            try {
+                return (await this.parseDocument(raw, contentType)) as T;
+            } catch {}
+
+        if (contentType.includes('text')) return raw as T;
+
+        const { TextEncoder } = this.runtime;
+
+        if (!TextEncoder)
+            throw new ReferenceError('TextEncoder is not available');
+
+        return new TextEncoder().encode(raw).buffer as T;
+    };
+
     requestXHR = <B>({
         method = 'GET',
         path,
@@ -136,11 +156,16 @@ export class HTTPToolkit extends DataToolkit {
     }: Request): RequestResult<B> => {
         const { XMLHttpRequest, Headers, Blob, ReadableStream } = this.runtime;
 
+        if (!XMLHttpRequest || !Headers || !Blob || !ReadableStream)
+            throw new ReferenceError('XHR runtime is missing required APIs');
+
         const request = new XMLHttpRequest();
         const header = new Headers(headers);
         const bodyPromise =
             body instanceof ReadableStream
-                ? Array.fromAsync(body).then(parts => new Blob(parts))
+                ? Array.fromAsync(body).then(
+                      (parts: BlobPart[]) => new Blob(parts)
+                  )
                 : Promise.resolve(body);
         const abort = () => request.abort();
 
@@ -156,11 +181,11 @@ export class HTTPToolkit extends DataToolkit {
                 resolve({
                     status,
                     statusText,
-                    headers: parseHeaders(request.getAllResponseHeaders()),
+                    headers: this.parseHeaders(request.getAllResponseHeaders()),
                     body:
                         responseType && responseType !== 'text'
                             ? request.response
-                            : request.responseText
+                            : request.responseText || request.response
                 });
             };
             request.onerror = request.ontimeout = reject;
@@ -180,20 +205,22 @@ export class HTTPToolkit extends DataToolkit {
                 request.setRequestHeader(key, value);
 
             Object.assign(request, rest);
+            if (rest.responseType === 'json') request.responseType = 'text';
 
             bodyPromise.then(body => request.send(body));
-        }).then(({ body, ...meta }) => {
+        }).then(async ({ body, ...meta }) => {
             signal?.throwIfAborted();
 
             const contentType = request.getResponseHeader('Content-Type') || '';
 
             if (typeof body === 'string' && !contentType.includes('text'))
-                body = parseBody(body, contentType);
+                body = await this.parseBody(body, contentType);
 
             return { ...meta, body };
         });
 
-        response.finally(() => signal?.removeEventListener('abort', abort));
+        const cleanup = () => signal?.removeEventListener('abort', abort);
+        response.then(cleanup, cleanup);
 
         return {
             response,
@@ -213,30 +240,33 @@ export class HTTPToolkit extends DataToolkit {
         responseType
     }: Request): RequestResult<B> => {
         const { EventTarget, Headers, ReadableStream, fetch } = this.runtime;
-        const signals = [
-            signal,
-            timeout && AbortSignal.timeout(timeout)
-        ].filter(Boolean);
 
-        headers =
-            headers instanceof Headers
-                ? Object.fromEntries(headers.entries())
-                : headers instanceof Array
-                  ? Object.fromEntries(headers)
-                  : headers;
-        headers =
-            responseType === 'text'
-                ? { ...headers, Accept: 'text/plain' }
-                : responseType === 'json'
-                  ? { ...headers, Accept: 'application/json' }
-                  : responseType === 'document'
-                    ? {
-                          ...headers,
-                          Accept: 'text/html, application/xhtml+xml, application/xml'
-                      }
-                    : responseType === 'arraybuffer' || responseType === 'blob'
-                      ? { ...headers, Accept: 'application/octet-stream' }
-                      : headers;
+        if (!EventTarget || !Headers || !ReadableStream || !fetch)
+            throw new ReferenceError('Fetch runtime is missing required APIs');
+
+        const signals: AbortSignal[] = [];
+        if (signal) signals.push(signal);
+        if (timeout) signals.push(AbortSignal.timeout(timeout));
+
+        const requestHeaders = new Headers(headers);
+
+        switch (responseType) {
+            case 'text':
+                requestHeaders.set('Accept', 'text/plain');
+                break;
+            case 'json':
+                requestHeaders.set('Accept', 'application/json');
+                break;
+            case 'document':
+                requestHeaders.set(
+                    'Accept',
+                    'text/html, application/xhtml+xml, application/xml'
+                );
+                break;
+            case 'arraybuffer':
+            case 'blob':
+                requestHeaders.set('Accept', 'application/octet-stream');
+        }
         const isStream = body instanceof ReadableStream;
         var upload: AsyncGenerator<ProgressData> | undefined;
 
@@ -246,7 +276,7 @@ export class HTTPToolkit extends DataToolkit {
             body = ReadableStream.from(
                 this.emitStreamProgress(
                     body,
-                    +headers['Content-Length'],
+                    +(requestHeaders.get('Content-Length') ?? NaN),
                     uploadProgress
                 )
             );
@@ -256,10 +286,10 @@ export class HTTPToolkit extends DataToolkit {
 
         const response = fetch(path + '', {
             method,
-            headers,
+            headers: requestHeaders,
             credentials: withCredentials ? 'include' : 'omit',
             body,
-            signal: signals[0] && AbortSignal.any(signals),
+            signal: signals[1] ? AbortSignal.any(signals) : signals[0],
             // @ts-expect-error https://developer.chrome.com/docs/capabilities/web-apis/fetch-streaming-requests
             duplex: isStream ? 'half' : undefined
         }).then(response =>
@@ -277,8 +307,12 @@ export class HTTPToolkit extends DataToolkit {
     ): Promise<Response<B>> => {
         const { ReadableStream } = this.runtime;
 
+        if (!ReadableStream)
+            throw new ReferenceError(
+                'ReadableStream is not available in runtime'
+            );
         const contentType = headers.get('Content-Type') || '';
-        const header = parseHeaders(
+        const header = this.parseHeaders(
             [...headers].map(([key, value]) => `${key}: ${value}`).join('\n')
         );
         if (status === 204 || !body)
@@ -287,7 +321,7 @@ export class HTTPToolkit extends DataToolkit {
         const stream = ReadableStream.from(
             this.emitStreamProgress(
                 ReadableStream.from(body as ReadableStreamLike),
-                +headers.get('Content-Length'),
+                +(headers.get('Content-Length') ?? NaN),
                 downloadProgress
             )
         );
@@ -306,6 +340,8 @@ export class HTTPToolkit extends DataToolkit {
     ) => {
         const { Blob } = this.runtime;
 
+        if (!Blob) throw new ReferenceError('Blob is not available in runtime');
+
         const blob = new Blob(await Array.fromAsync(stream), {
             type: contentType
         });
@@ -318,13 +354,14 @@ export class HTTPToolkit extends DataToolkit {
 
         if (responseType === 'text') return text as B;
 
-        return parseBody<B>(text, contentType);
+        return this.parseBody<B>(text, contentType);
     };
 
-    rawRequest =
-        typeof this.runtime.XMLHttpRequest === 'function'
+    get rawRequest() {
+        return typeof this.runtime.XMLHttpRequest === 'function'
             ? this.requestXHR
             : this.requestFetch;
+    }
 
     /**
      * Sends a `HEAD` request, falling back to simulation when the server does
@@ -344,17 +381,14 @@ export class HTTPToolkit extends DataToolkit {
     }: Request): Promise<HeadResponse> => {
         const { Headers, fetch } = this.runtime;
 
-        const normalizedHeaders: Record<string, string> = !headers
-            ? {}
-            : headers instanceof Headers
-              ? Object.fromEntries(headers)
-              : Array.isArray(headers)
-                ? Object.fromEntries(headers)
-                : (headers as Record<string, string>);
-        const signals = [
-            signal,
-            timeout && AbortSignal.timeout(timeout)
-        ].filter(Boolean) as AbortSignal[];
+        if (!Headers || !fetch)
+            throw new ReferenceError('Fetch runtime is missing required APIs');
+
+        const normalizedHeaders = new Headers(headers);
+
+        const signals: AbortSignal[] = [];
+        if (signal) signals.push(signal);
+        if (timeout) signals.push(AbortSignal.timeout(timeout));
 
         const fetchOptions: RequestInit = {
             credentials: withCredentials ? 'include' : 'omit',
@@ -433,7 +467,10 @@ export class HTTPToolkit extends DataToolkit {
 export const {
     requestXHR,
     requestFetch,
+    normalizeHeaders,
+    parseHeaders,
     parseResponse,
+    parseBody,
     parseFetchBody,
     rawRequest,
     requestHead,

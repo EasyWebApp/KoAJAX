@@ -14,12 +14,13 @@ export class Stack<C = any> {
         return this;
     }
 
-    execute(context?: C, depth = 0) {
-        const middleware: Middleware<C> | undefined = this[depth];
+    execute(context?: C, depth = 0): ReturnType<Middleware<C>> {
+        const middleware = Reflect.get(this, depth) as
+            Middleware<C> | undefined;
 
         if (middleware instanceof Function)
             return middleware(
-                context,
+                context as C,
                 this.execute.bind(this, context, ++depth)
             );
     }
