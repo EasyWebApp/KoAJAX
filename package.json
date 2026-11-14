@@ -1,6 +1,6 @@
 {
     "name": "koajax",
-    "version": "3.3.3",
+    "version": "3.3.4",
     "license": "LGPL-3.0",
     "author": "shiy2008@gmail.com",
     "description": "HTTP Client based on Koa-like middlewares",
@@ -71,14 +71,13 @@
     "targets": {
         "main": {
             "optimize": true
-        },
-        "types": false
+        }
     },
     "scripts": {
         "prepare": "husky",
         "check": "lint-staged  &&  tsc --noEmit  &&  tsc --noEmit --project test/tsconfig.json",
         "test": "npm run check  &&  node --import tsx --import ./test/setup.ts --test --test-timeout=10000 test/*.spec.ts",
-        "pack-dist": "rm -rf dist/  &&  tsc --emitDeclarationOnly  &&  parcel build",
+        "pack-dist": "rm -rf dist/  &&  parcel build",
         "pack-docs": "rm -rf docs/  &&  typedoc source/",
         "build": "npm run pack-dist  &&  npm run pack-docs",
         "help": "npm run pack-docs  &&  open-cli docs/index.html",
